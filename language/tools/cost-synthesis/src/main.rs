@@ -11,6 +11,7 @@ use cost_synthesis::{
     module_generator::ModuleGenerator,
     natives::StackAccessorMocker,
     stack_generator::RandomStackGenerator,
+    vm_runner::bogus_gas_schedule,
     with_loaded_vm,
 };
 use csv;

@@ -7,24 +7,24 @@
 //! operations or other native operations; the cost of each native operation will be returned by the
 //! native function itself.
 use crate::{
-    file_format::{
-        AddressPoolIndex, ByteArrayPoolIndex, Bytecode, FieldDefinitionIndex, FunctionHandleIndex,
-        StructDefinitionIndex, UserStringIndex, NO_TYPE_ACTUALS, NUMBER_OF_BYTECODE_INSTRUCTIONS,
-    },
+    file_format::{Bytecode, NUMBER_OF_BYTECODE_INSTRUCTIONS, TableIndex},
     serializer::serialize_instruction,
 };
 use lazy_static::lazy_static;
 use libra_types::transaction::MAX_TRANSACTION_SIZE_IN_BYTES;
 use std::{
-    collections::HashMap,
     ops::{Add, Div, Mul, Sub},
     u64,
 };
+use serde::{Serialize, Deserialize};
 
 /// The underlying carrier for gas-related units and costs. Data with this type should not be
 /// manipulated directly, but instead be manipulated using the newtype wrappers defined around
 /// them and the functions defined in the `GasAlgebra` trait.
 pub type GasCarrier = u64;
+
+/// The index for the gas schedule resource within the GasSchedule module is 1.
+pub const GAS_SCHEDULE_RESOURCE_DEF_IDX: TableIndex = 1;
 
 /// A trait encoding the operations permitted on the underlying carrier for the gas unit, and how
 /// other gas-related units can interact with other units -- operations can only be performed
@@ -105,7 +105,7 @@ macro_rules! define_gas_unit {
         carrier: $carrier: ty,
         doc: $comment: literal
     } => {
-        #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
+        #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
         #[doc=$comment]
         pub struct $name<GasCarrier>(GasCarrier);
         impl GasAlgebra<$carrier> for $name<$carrier> {
@@ -136,11 +136,6 @@ define_gas_unit! {
     carrier: GasCarrier,
     doc: "A newtype wrapper around the gas price for each unit of gas consumed."
 }
-
-/// A newtype wrapper around the on-chain representation of an instruction key. This is the
-/// serialization of the instruction but disregarding any instruction arguments.
-#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
-pub struct InstructionKey(pub u8);
 
 lazy_static! {
     /// The cost per-byte written to global storage.
@@ -194,160 +189,78 @@ lazy_static! {
 /// The cost tables, keyed by the serialized form of the bytecode instruction.  We use the
 /// serialized form as opposed to the instruction enum itself as the key since this will be the
 /// on-chain representation of bytecode instructions in the future.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CostTable {
-    pub compute_table: HashMap<InstructionKey, GasUnits<GasCarrier>>,
-    pub memory_table: HashMap<InstructionKey, GasUnits<GasCarrier>>,
+    pub instruction_table: Vec<GasCost>,
+    // TODO: The native table needs to be populated
+    pub native_table: Vec<GasCost>,
 }
 
-impl InstructionKey {
-    /// The encoding of the instruction is the serialized form of it, but disregarding the
-    /// serializtion of the instructions arguments.
-    pub fn new(instruction: &Bytecode) -> Self {
-        let mut vec = Vec::new();
-        serialize_instruction(&mut vec, instruction).unwrap();
-        Self(vec[0])
-    }
+/// The encoding of the instruction is the serialized form of it, but disregarding the
+/// serializtion of the instructions arguments.
+pub fn instruction_key(instruction: &Bytecode) -> u8 {
+    let mut vec = Vec::new();
+    serialize_instruction(&mut vec, instruction).unwrap();
+    vec[0]
 }
 
 impl CostTable {
-    pub fn new(instrs: Vec<(Bytecode, u64, u64)>) -> Self {
-        let mut compute_table = HashMap::new();
-        let mut memory_table = HashMap::new();
-        let mut instructions_covered = 0;
-        for (instr, comp_cost, mem_cost) in instrs.into_iter() {
-            let code = InstructionKey::new(&instr);
-            if cfg!(debug_assertions) && compute_table.get(&code).is_none() {
-                instructions_covered += 1;
+    pub fn new(mut instrs: Vec<(Bytecode, GasCost)>) -> Self {
+
+        instrs.sort_by_key(|cost| instruction_key(&cost.0));
+
+        if cfg!(debug_assertions) {
+            let mut instructions_covered = 0;
+            for (index, (instr, _)) in instrs.iter().enumerate() {
+                let key = instruction_key(instr);
+                if index ==  (key - 1) as usize {
+                    instructions_covered += 1;
+                }
             }
-            compute_table.insert(code, GasUnits::new(comp_cost));
-            memory_table.insert(code, GasUnits::new(mem_cost));
+            debug_assert!(
+                instructions_covered == NUMBER_OF_BYTECODE_INSTRUCTIONS,
+                "all instructions must be in the cost table"
+            );
         }
-        debug_assert!(
-            instructions_covered == NUMBER_OF_BYTECODE_INSTRUCTIONS,
-            "all instructions must be in the cost table"
-        );
-        Self {
-            compute_table,
-            memory_table,
-        }
+
+        let instruction_table = instrs.into_iter().map(|(_, cost)| cost).collect::<Vec<GasCost>>();
+        // TODO: populate the native table
+        Self { instruction_table, native_table: Vec::new()}
     }
 
-    pub fn memory_gas(
+    pub fn get_gas(
         &self,
         instr: &Bytecode,
         size_provider: AbstractMemorySize<GasCarrier>,
-    ) -> GasUnits<GasCarrier> {
-        let code = InstructionKey::new(instr);
-        let memory_cost = self.memory_table.get(&code);
-        // CostTable initialization checks that every instruction is included in the memory_table
-        assume!(memory_cost.is_some());
-        memory_cost.unwrap().map2(size_provider, Mul::mul)
+    ) -> GasCost {
+        // NB: instruction keys are 1-indexed. This means that their location in the cost array
+        // will be the key - 1.
+        let key = instruction_key(instr);
+        let cost = self.instruction_table.get((key - 1) as usize);
+        assume!(cost.is_some());
+        let good_cost = cost.unwrap();
+        GasCost {
+            instruction_gas: good_cost.instruction_gas.map2(size_provider, Mul::mul),
+            memory_gas: good_cost.memory_gas.map2(size_provider, Mul::mul),
+        }
     }
-
-    pub fn comp_gas(
-        &self,
-        instr: &Bytecode,
-        size_provider: AbstractMemorySize<GasCarrier>,
-    ) -> GasUnits<GasCarrier> {
-        let code = InstructionKey::new(instr);
-        let compute_cost = self.compute_table.get(&code);
-        // CostTable initialization checks that every instruction is included in the compute_table
-        assume!(compute_cost.is_some());
-        compute_cost.unwrap().map2(size_provider, Mul::mul)
-    }
-}
-
-lazy_static! {
-    static ref GAS_SCHEDULE: CostTable = {
-        use Bytecode::*;
-        // Arguments to the instructions don't matter -- these will be removed in the
-        // `encode_instruction` function.
-        //
-        // The second element of the tuple is the computational cost. The third element of the
-        // tuple is the memory cost per-byte for the instruction.
-        // TODO: At the moment the computational cost is correct, and the memory cost is not
-        // correct at all (hence why they're all 1's at the moment).
-        let instrs = vec![
-            (MoveToSender(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 774, 1),
-            (GetTxnSenderAddress, 30, 1),
-            (MoveFrom(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 917, 1),
-            (BrTrue(0), 31, 1),
-            (WriteRef, 65, 1),
-            (Mul, 41, 1),
-            (MoveLoc(0), 41, 1),
-            (And, 49, 1),
-            (GetTxnPublicKey, 41, 1),
-            (Pop, 27, 1),
-            (BitAnd, 44, 1),
-            (ReadRef, 51, 1),
-            (Sub, 44, 1),
-            (MutBorrowField(FieldDefinitionIndex::new(0)), 58, 1),
-            (ImmBorrowField(FieldDefinitionIndex::new(0)), 58, 1),
-            (Add, 45, 1),
-            (CopyLoc(0), 41, 1),
-            (StLoc(0), 28, 1),
-            (Ret, 28, 1),
-            (Lt, 49, 1),
-            (LdConst(0), 29, 1),
-            (Abort, 39, 1),
-            (MutBorrowLoc(0), 45, 1),
-            (ImmBorrowLoc(0), 45, 1),
-            (LdStr(UserStringIndex::new(0)), 52, 1),
-            (LdAddr(AddressPoolIndex::new(0)), 36, 1),
-            (Ge, 46, 1),
-            (Xor, 46, 1),
-            (Neq, 51, 1),
-            (Not, 35,1),
-            (Call(FunctionHandleIndex::new(0), NO_TYPE_ACTUALS), 197, 1),
-            (Le, 47, 1),
-            (CreateAccount, 1119, 1),
-            (Branch(0), 10, 1),
-            (Unpack(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 94, 1),
-            (Or, 43, 1),
-            (LdFalse, 30, 1),
-            (LdTrue, 29, 1),
-            (GetTxnGasUnitPrice, 29, 1),
-            (Mod, 42, 1),
-            (BrFalse(0), 29, 1),
-            (Exists(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 856, 1),
-            (GetGasRemaining, 32, 1),
-            (BitOr, 45, 1),
-            (GetTxnMaxGasUnits, 34, 1),
-            (GetTxnSequenceNumber, 29, 1),
-            (FreezeRef, 10, 1),
-            (MutBorrowGlobal(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 929, 1),
-            (ImmBorrowGlobal(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 929, 1),
-            (Div, 41, 1),
-            (Eq, 48, 1),
-            (LdByteArray(ByteArrayPoolIndex::new(0)), 56, 1),
-            (Gt, 46, 1),
-            (Pack(StructDefinitionIndex::new(0), NO_TYPE_ACTUALS), 73, 1),
-        ];
-        CostTable::new(instrs)
-    };
 }
 
 /// The  `GasCost` tracks:
 /// - instruction cost: how much time/computational power is needed to perform the instruction
 /// - memory cost: how much memory is required for the instruction, and storage overhead
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GasCost {
     pub instruction_gas: GasUnits<GasCarrier>,
     pub memory_gas: GasUnits<GasCarrier>,
 }
 
-/// Statically cost a bytecode instruction.
-///
-/// Don't take into account current stack or memory size. Don't track whether references are to
-/// global or local storage.
-pub fn static_cost_instr(
-    instr: &Bytecode,
-    size_provider: AbstractMemorySize<GasCarrier>,
-) -> GasCost {
-    GasCost {
-        instruction_gas: GAS_SCHEDULE.comp_gas(instr, size_provider),
-        memory_gas: GAS_SCHEDULE.memory_gas(instr, size_provider),
+impl GasCost {
+    pub fn new(instr_gas: GasCarrier, mem_gas: GasCarrier) -> Self {
+        Self {
+            instruction_gas: GasUnits::new(instr_gas),
+            memory_gas: GasUnits::new(mem_gas),
+        }
     }
 }
 

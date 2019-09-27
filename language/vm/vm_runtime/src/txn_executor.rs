@@ -7,7 +7,7 @@ use crate::{
     counters::*,
     data_cache::{RemoteCache, TransactionDataCache},
     execution_stack::ExecutionStack,
-    gas_meter::GasMeter,
+    gas_meter::{load_gas_schedule, GasMeter},
     identifier::{create_access_path, resource_storage_key},
     loaded_data::{
         function::{FunctionRef, FunctionReference},
@@ -35,7 +35,7 @@ use vm::{
     access::ModuleAccess,
     errors::*,
     file_format::{Bytecode, CodeOffset, CompiledScript, StructDefinitionIndex},
-    gas_schedule::{AbstractMemorySize, GasAlgebra, GasUnits},
+    gas_schedule::{AbstractMemorySize, CostTable, GasAlgebra, GasUnits},
     transaction_metadata::TransactionMetadata,
     vm_string::VMString,
 };
@@ -44,6 +44,8 @@ use vm_runtime_types::{
     native_functions::dispatch::{dispatch_native_function, NativeReturnStatus},
     value::{ReferenceValue, Struct, Value},
 };
+
+pub use crate::gas_meter::GAS_SCHEDULE_MODULE;
 
 // Metadata needed for resolving the account module.
 lazy_static! {
@@ -62,6 +64,7 @@ lazy_static! {
     /// The ModuleId for the validator config
     pub static ref VALIDATOR_CONFIG_MODULE: ModuleId =
         { ModuleId::new(account_config::core_code_address(), Identifier::new("ValidatorConfig").unwrap()) };
+
     /// The ModuleId for the validator set
     pub static ref VALIDATOR_SET_MODULE: ModuleId =
         { ModuleId::new(account_config::core_code_address(), Identifier::new("ValidatorSet").unwrap()) };
@@ -107,7 +110,7 @@ where
 
     #[cfg(not(any(test, feature = "instruction_synthesis")))]
     execution_stack: ExecutionStack<'alloc, 'txn, P>,
-    gas_meter: GasMeter,
+    gas_meter: GasMeter<'txn>,
     txn_data: TransactionMetadata,
     event_data: Vec<ContractEvent>,
     data_view: TransactionDataCache<'txn>,
@@ -124,12 +127,13 @@ where
     /// transactions within the same block.
     pub fn new(
         module_cache: P,
+        gas_schedule: &'txn CostTable,
         data_cache: &'txn dyn RemoteCache,
         txn_data: TransactionMetadata,
     ) -> Self {
         TransactionExecutor {
             execution_stack: ExecutionStack::new(module_cache),
-            gas_meter: GasMeter::new(txn_data.max_gas_amount()),
+            gas_meter: GasMeter::new(txn_data.max_gas_amount(), gas_schedule),
             txn_data,
             event_data: Vec::new(),
             data_view: TransactionDataCache::new(data_cache),
@@ -829,9 +833,10 @@ pub fn execute_function(
     for m in modules {
         module_cache.cache_module(m);
     }
+    let gas_schedule = load_gas_schedule(&module_cache, data_cache)?;
     let mut vm = TransactionExecutor {
         execution_stack: ExecutionStack::new(&module_cache),
-        gas_meter: GasMeter::new(txn_metadata.max_gas_amount()),
+        gas_meter: GasMeter::new(txn_metadata.max_gas_amount(), &gas_schedule),
         txn_data: txn_metadata,
         event_data: Vec::new(),
         data_view: TransactionDataCache::new(data_cache),

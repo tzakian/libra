@@ -131,7 +131,10 @@ impl FakeExecutor {
     ///
     /// Typical tests will call this method and check that the output matches what was expected.
     /// However, this doesn't apply the results of successful transactions to the data store.
-    pub fn execute_block(&self, txn_block: Vec<SignedTransaction>) -> Vec<TransactionOutput> {
+    pub fn execute_block(
+        &self,
+        txn_block: Vec<SignedTransaction>,
+    ) -> Result<Vec<TransactionOutput>, VMStatus> {
         MoveVM::execute_block(
             txn_block
                 .into_iter()
@@ -140,12 +143,11 @@ impl FakeExecutor {
             &self.config.vm_config,
             &self.data_store,
         )
-        .expect("The VM should not fail to start")
     }
 
     pub fn execute_transaction(&self, txn: SignedTransaction) -> TransactionOutput {
         let txn_block = vec![txn];
-        let mut outputs = self.execute_block(txn_block);
+        let mut outputs = self.execute_block(txn_block).unwrap();
         outputs
             .pop()
             .expect("A block with one transaction should have one output")

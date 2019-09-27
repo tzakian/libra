@@ -13,6 +13,7 @@ fn simple_main() {
         ",
     );
 
+    compile_and_execute(&program, vec![]).unwrap();
     assert!(compile_and_execute(&program, vec![]).is_ok());
 }
 

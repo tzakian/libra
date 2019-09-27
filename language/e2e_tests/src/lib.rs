@@ -7,13 +7,14 @@
 
 use bytecode_verifier::{VerifiedModule, VerifiedScript};
 use compiler::Compiler;
-use data_store::FakeDataStore;
+use data_store::{FakeDataStore, GENESIS_WRITE_SET};
 use libra_types::{
     access_path::AccessPath,
     account_address::AccountAddress,
     transaction::{TransactionArgument, TransactionStatus},
     vm_error::VMStatus,
 };
+use stdlib::stdlib_modules;
 use vm::{
     errors::*,
     file_format::{CompiledModule, CompiledScript},
@@ -43,8 +44,9 @@ pub fn compile_and_execute(program: &str, args: Vec<TransactionArgument>) -> VMR
     let compiled_program = compiler
         .into_compiled_program(program)
         .expect("Failed to compile");
-    let (verified_script, modules) =
+    let (verified_script, mut modules) =
         verify(&address, compiled_program.script, compiled_program.modules);
+    modules.append(&mut stdlib_modules().clone().to_vec());
     execute(verified_script, args, modules)
 }
 
@@ -55,6 +57,7 @@ pub fn execute(
 ) -> VMResult<()> {
     // set up the DB
     let mut data_view = FakeDataStore::default();
+    data_view.add_write_set(&GENESIS_WRITE_SET);
     data_view.set(
         AccessPath::new(AccountAddress::random(), vec![]),
         vec![0, 0],

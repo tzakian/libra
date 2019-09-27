@@ -17,7 +17,7 @@ use libra_types::{
 };
 use vm::{
     errors::convert_prologue_runtime_error,
-    gas_schedule::{self, AbstractMemorySize, GasAlgebra, GasCarrier},
+    gas_schedule::{self, AbstractMemorySize, CostTable, GasAlgebra, GasCarrier},
     transaction_metadata::TransactionMetadata,
 };
 use vm_cache_map::Arena;
@@ -72,6 +72,7 @@ where
     ) -> Result<Self, VMStatus> {
         let ProcessTransaction {
             txn,
+            gas_schedule,
             module_cache,
             data_cache,
             allocator,
@@ -82,6 +83,7 @@ where
             TransactionPayload::Program(program) => {
                 Some(ValidatedTransaction::validate(
                     &txn,
+                    gas_schedule,
                     module_cache,
                     data_cache,
                     allocator,
@@ -107,6 +109,7 @@ where
             TransactionPayload::Script(script) => {
                 Some(ValidatedTransaction::validate(
                     &txn,
+                    gas_schedule,
                     module_cache,
                     data_cache,
                     allocator,
@@ -125,6 +128,7 @@ where
                 debug!("validate module {:?}", module);
                 Some(ValidatedTransaction::validate(
                     &txn,
+                    gas_schedule,
                     module_cache,
                     data_cache,
                     allocator,
@@ -190,6 +194,7 @@ where
 
     fn validate(
         txn: &SignatureCheckedTransaction,
+        gas_schedule: &'txn CostTable,
         module_cache: P,
         data_cache: &'txn dyn RemoteCache,
         allocator: &'txn Arena<LoadedModule>,
@@ -300,8 +305,13 @@ where
         payload_check()?;
 
         let metadata = TransactionMetadata::new(&txn);
-        let mut txn_state =
-            ValidatedTransactionState::new(metadata, module_cache, data_cache, allocator);
+        let mut txn_state = ValidatedTransactionState::new(
+            metadata,
+            gas_schedule,
+            module_cache,
+            data_cache,
+            allocator,
+        );
 
         // Run the prologue to ensure that clients have enough gas and aren't tricking us by
         // sending us garbage.
@@ -348,13 +358,15 @@ where
 {
     fn new(
         metadata: TransactionMetadata,
+        gas_schedule: &'txn CostTable,
         module_cache: P,
         data_cache: &'txn dyn RemoteCache,
         allocator: &'txn Arena<LoadedModule>,
     ) -> Self {
         // This temporary cache is used for modules published by a single transaction.
         let txn_module_cache = TransactionModuleCache::new(module_cache, allocator);
-        let txn_executor = TransactionExecutor::new(txn_module_cache, data_cache, metadata);
+        let txn_executor =
+            TransactionExecutor::new(txn_module_cache, gas_schedule, data_cache, metadata);
         Self { txn_executor }
     }
 }

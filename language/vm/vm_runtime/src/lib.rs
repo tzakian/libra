@@ -136,7 +136,6 @@ pub use move_vm::MoveVM;
 pub use process_txn::verify::static_verify_program;
 pub use txn_executor::execute_function;
 
-use failure::prelude::*;
 use libra_config::config::VMConfig;
 use libra_types::{
     transaction::{SignedTransaction, Transaction, TransactionOutput},
@@ -169,5 +168,5 @@ pub trait VMExecutor {
         transactions: Vec<Transaction>,
         config: &VMConfig,
         state_view: &dyn StateView,
-    ) -> Result<Vec<TransactionOutput>>;
+    ) -> Result<Vec<TransactionOutput>, VMStatus>;
 }

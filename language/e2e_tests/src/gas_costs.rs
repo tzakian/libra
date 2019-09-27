@@ -140,6 +140,6 @@ lazy_static! {
 }
 
 fn compute_gas_used(txn: SignedTransaction, executor: &mut FakeExecutor) -> u64 {
-    let output = &executor.execute_block(vec![txn])[0];
+    let output = &executor.execute_transaction(txn);
     output.gas_used()
 }

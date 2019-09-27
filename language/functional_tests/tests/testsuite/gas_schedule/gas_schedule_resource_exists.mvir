@@ -1,0 +1,6 @@
+import 0x0.GasSchedule;
+
+main() {
+    assert(GasSchedule.has(), 0);
+    return;
+}
