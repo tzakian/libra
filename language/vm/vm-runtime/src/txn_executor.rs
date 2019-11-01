@@ -6,6 +6,7 @@ use crate::{
     code_cache::module_cache::{ModuleCache, VMModuleCache},
     counters::*,
     data_cache::{RemoteCache, TransactionDataCache},
+    gas_meter::GasMeter,
     interpreter::Interpreter,
     loaded_data::{
         function::{FunctionRef, FunctionReference},
@@ -16,6 +17,7 @@ use bytecode_verifier::{VerifiedModule, VerifiedScript};
 use libra_types::{
     account_address::AccountAddress,
     account_config,
+    contract_event::ContractEvent,
     identifier::{IdentStr, Identifier},
     language_storage::ModuleId,
     transaction::{TransactionArgument, TransactionOutput, TransactionStatus},
@@ -23,7 +25,10 @@ use libra_types::{
     write_set::WriteSet,
 };
 use vm::{
-    errors::*, file_format::CompiledScript, transaction_metadata::TransactionMetadata,
+    errors::*,
+    file_format::CompiledScript,
+    gas_schedule::{GasAlgebra, GasCarrier, GasUnits},
+    transaction_metadata::TransactionMetadata,
     vm_string::VMString,
 };
 use vm_cache_map::Arena;
@@ -65,70 +70,102 @@ lazy_static! {
 /// 'alloc is the lifetime for the code cache, which is the argument type P here. Hence the P should
 /// live as long as alloc.
 /// 'txn is the lifetime of one single transaction.
-pub struct TransactionExecutor<'alloc, 'txn, P>
+pub struct TransactionExecutor<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
-    interpreter: Interpreter<'alloc, 'txn, P>,
+    module_cache: &'txn dyn ModuleCache<'alloc>,
+    data_cache: &'txn TransactionDataCache<'txn>,
+    txn_data: TransactionMetadata,
+    event_data: Vec<ContractEvent>,
+    gas_left: GasUnits<GasCarrier>,
 }
 
-impl<'alloc, 'txn, P> TransactionExecutor<'alloc, 'txn, P>
+impl<'alloc, 'txn> TransactionExecutor<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     /// Create a new `TransactionExecutor` to execute a single transaction. `module_cache` is the
     /// cache that stores the modules previously read from the blockchain. `data_cache` is the cache
     /// that holds read-only connection to the state store as well as the changes made by previous
     /// transactions within the same block.
     pub fn new(
-        module_cache: P,
+        module_cache: &'txn dyn ModuleCache<'alloc>,
         data_cache: &'txn dyn RemoteCache,
         txn_data: TransactionMetadata,
     ) -> Self {
         TransactionExecutor {
-            interpreter: Interpreter::new(
-                module_cache,
-                txn_data,
-                TransactionDataCache::new(data_cache),
-            ),
+            module_cache,
+            data_cache: &TransactionDataCache::new(data_cache),
+            txn_data,
+            event_data: Vec::new(),
+            gas_left: txn_data.max_gas_amount(),
         }
     }
 
     /// Returns the module cache for this executor.
-    pub fn module_cache(&self) -> &P {
-        &self.interpreter.module_cache()
+    pub fn module_cache(&self) -> &'txn dyn ModuleCache<'alloc> {
+        self.module_cache
     }
 
     /// Create an account on the blockchain by calling into `CREATE_ACCOUNT_NAME` function stored
     /// in the `ACCOUNT_MODULE` on chain.
     pub fn create_account(&mut self, addr: AccountAddress) -> VMResult<()> {
-        self.interpreter.create_account_entry(addr)
+        let gas_meter = GasMeter::new(self.gas_left);
+        Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        )
+        .create_account_entry(addr)?;
+        self.gas_left = gas_meter.remaining_gas();
+        Ok(())
     }
 
     /// Run the prologue of a transaction by calling into `PROLOGUE_NAME` function stored
     /// in the `ACCOUNT_MODULE` on chain.
     pub(crate) fn run_prologue(&mut self) -> VMResult<()> {
-        record_stats! {time_hist | TXN_PROLOGUE_TIME_TAKEN | {
-                self.interpreter.disable_metering();
-                let result = self.execute_function(&ACCOUNT_MODULE, &PROLOGUE_NAME, vec![]);
-                self.interpreter.enable_metering();
+        let gas_meter = GasMeter::new(self.gas_left);
+        let interpreter = Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        );
+        let result = record_stats! {time_hist | TXN_PROLOGUE_TIME_TAKEN | {
+                interpreter.disable_metering();
+                let result = interpreter.execute_function(&ACCOUNT_MODULE, &PROLOGUE_NAME, vec![]);
+                interpreter.enable_metering();
                 result
             }
-        }
+        };
+        self.gas_left = gas_meter.remaining_gas();
+        result
     }
 
     /// Run the epilogue of a transaction by calling into `EPILOGUE_NAME` function stored
     /// in the `ACCOUNT_MODULE` on chain.
     fn run_epilogue(&mut self) -> VMResult<()> {
-        record_stats! {time_hist | TXN_EPILOGUE_TIME_TAKEN | {
-                self.interpreter.disable_metering();
-                let result = self.execute_function(&ACCOUNT_MODULE, &EPILOGUE_NAME, vec![]);
-                self.interpreter.enable_metering();
+        let gas_meter = GasMeter::new(self.gas_left);
+        let interpreter = Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        );
+        let result = record_stats! {time_hist | TXN_EPILOGUE_TIME_TAKEN | {
+                interpreter.disable_metering();
+                let result = interpreter.execute_function(&ACCOUNT_MODULE, &EPILOGUE_NAME, vec![]);
+                interpreter.enable_metering();
                 result
             }
-        }
+        };
+        self.gas_left = gas_meter.remaining_gas();
+        result
     }
 
     /// Generate the TransactionOutput on failure. There can be two possibilities:
@@ -152,7 +189,8 @@ where
 
     /// Clear all the writes local to this transaction.
     fn clear(&mut self) {
-        self.interpreter.clear();
+        self.data_cache.clear();
+        self.event_data.clear();
     }
 
     /// Generate the TransactionOutput for a successful transaction
@@ -184,8 +222,17 @@ where
         func: FunctionRef<'txn>,
         args: Vec<TransactionArgument>,
     ) -> VMResult<()> {
-        self.interpreter
-            .interpeter_entrypoint(func, convert_txn_args(args))
+        let gas_meter = GasMeter::new(self.gas_left);
+        Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        )
+        .interpeter_entrypoint(func, convert_txn_args(args))?;
+        self.gas_left = gas_meter.remaining_gas();
+        Ok(())
     }
 
     /// Execute a function.
@@ -199,8 +246,17 @@ where
         function_name: &IdentStr,
         args: Vec<Value>,
     ) -> VMResult<()> {
-        self.interpreter
-            .execute_function(module, function_name, args)
+        let gas_meter = GasMeter::new(self.gas_left);
+        Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        )
+        .execute_function(module, function_name, args)?;
+        self.gas_left = gas_meter.remaining_gas();
+        Ok(())
     }
 
     /// Execute a function with the sender set to `sender`, restoring the original sender afterward.
@@ -213,9 +269,18 @@ where
         function_name: &IdentStr,
         args: Vec<Value>,
     ) -> VMResult<()> {
-        let old_sender = self.interpreter.swap_sender(address);
-        let res = self.execute_function(module, function_name, args);
-        self.interpreter.swap_sender(old_sender);
+        let gas_meter = GasMeter::new(self.gas_left);
+        let interpreter = Interpreter::new(
+            self.module_cache,
+            self.txn_data,
+            &mut self.data_cache,
+            &mut self.event_data,
+            &mut gas_meter,
+        );
+        let old_sender = interpreter.swap_sender(address);
+        let res = interpreter.execute_function(module, function_name, args);
+        interpreter.swap_sender(old_sender);
+        self.gas_left = gas_meter.remaining_gas();
         res
     }
 
@@ -228,14 +293,14 @@ where
     ) -> VMResult<TransactionOutput> {
         // This should only be used for bookkeeping. The gas is already deducted from the sender's
         // account in the account module's epilogue.
-        let gas_used: u64 = self.interpreter.gas_used();
-        let write_set = self.interpreter.make_write_set(to_be_published_modules)?;
+        let gas_used: u64 = self.txn_data.max_gas_amount().sub(self.gas_left).get();
+        let write_set = self.data_cache.make_write_set(to_be_published_modules)?;
 
         record_stats!(observe | TXN_TOTAL_GAS_USAGE | gas_used);
 
         Ok(TransactionOutput::new(
             write_set,
-            self.interpreter.events().to_vec(),
+            self.event_data,
             gas_used,
             match result {
                 Ok(()) => TransactionStatus::from(VMStatus::new(StatusCode::EXECUTED)),
@@ -286,10 +351,13 @@ pub fn execute_function(
     for m in modules {
         module_cache.cache_module(m);
     }
+    let gas_meter = GasMeter::new(txn_metadata.max_gas_amount());
     let mut interpreter = Interpreter::new(
-        module_cache,
+        &module_cache,
         txn_metadata,
-        TransactionDataCache::new(data_cache),
+        &mut TransactionDataCache::new(data_cache),
+        &mut Vec::new(),
+        &mut gas_meter,
     );
     interpreter.interpeter_entrypoint(entry_func, convert_txn_args(args))
 }

@@ -15,7 +15,6 @@ use libra_types::{
     language_storage::ModuleId,
     vm_error::{StatusCode, VMStatus},
 };
-use std::marker::PhantomData;
 use vm::{
     access::ModuleAccess,
     errors::*,
@@ -483,35 +482,32 @@ impl<'alloc, 'blk, F: ModuleFetcher> ModuleCache<'alloc> for BlockModuleCache<'a
 /// transaction script to refer to either those newly published modules in `local_cache` or those
 /// existing on chain modules in `block_cache`. VM can choose to discard those newly published
 /// modules if there is an error during execution.
-pub struct TransactionModuleCache<'alloc, 'txn, P>
+pub struct TransactionModuleCache<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
-    block_cache: P,
+    block_cache: &'txn dyn ModuleCache<'alloc>,
     local_cache: VMModuleCache<'txn>,
-
-    phantom: PhantomData<&'alloc ()>,
 }
 
-impl<'alloc, 'txn, P> TransactionModuleCache<'alloc, 'txn, P>
+impl<'alloc, 'txn> TransactionModuleCache<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
-    pub fn new(block_cache: P, allocator: &'txn Arena<LoadedModule>) -> Self {
+    pub fn new(
+        block_cache: &'txn dyn ModuleCache<'alloc>,
+        allocator: &'txn Arena<LoadedModule>,
+    ) -> Self {
         TransactionModuleCache {
             block_cache,
             local_cache: VMModuleCache::new(allocator),
-            phantom: PhantomData,
         }
     }
 }
 
-impl<'alloc, 'txn, P> ModuleCache<'txn> for TransactionModuleCache<'alloc, 'txn, P>
+impl<'alloc, 'txn> ModuleCache<'txn> for TransactionModuleCache<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     fn resolve_function_ref(
         &self,

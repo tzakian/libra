@@ -34,13 +34,9 @@ pub fn is_allowed_script(publishing_option: &VMPublishingOption, program: &[u8])
 
 /// Represents a [`SignedTransaction`] that has been *validated*. This includes all the steps
 /// required to ensure that a transaction is valid, other than verifying the submitted program.
-pub struct ValidatedTransaction<'alloc, 'txn, P>
-where
-    'alloc: 'txn,
-    P: ModuleCache<'alloc>,
-{
+pub struct ValidatedTransaction<'txn> {
     txn: SignatureCheckedTransaction,
-    txn_state: Option<ValidatedTransactionState<'alloc, 'txn, P>>,
+    txn_state: Option<ValidatedTransactionState<'txn>>,
 }
 
 /// The mode to validate transactions in.
@@ -57,16 +53,12 @@ pub enum ValidationMode {
     Executing,
 }
 
-impl<'alloc, 'txn, P> ValidatedTransaction<'alloc, 'txn, P>
-where
-    'alloc: 'txn,
-    P: ModuleCache<'alloc>,
-{
+impl<'txn> ValidatedTransaction<'txn> {
     /// Creates a new instance by validating a `SignedTransaction`.
     ///
     /// This should be called through [`ProcessTransaction::validate`].
-    pub(super) fn new(
-        process_txn: ProcessTransaction<'alloc, 'txn, P>,
+    pub(super) fn new<'alloc: 'txn>(
+        process_txn: ProcessTransaction<'alloc, 'txn>,
         mode: ValidationMode,
         publishing_option: &VMPublishingOption,
     ) -> Result<Self, VMStatus> {
@@ -165,10 +157,10 @@ where
     }
 
     /// Verifies the bytecode in this transaction.
-    pub fn verify(
+    pub fn verify<'alloc: 'txn>(
         self,
         script_cache: &'txn ScriptCache<'alloc>,
-    ) -> Result<VerifiedTransaction<'alloc, 'txn, P>, VMStatus> {
+    ) -> Result<VerifiedTransaction<'alloc, 'txn>, VMStatus> {
         VerifiedTransaction::new(self, script_cache)
     }
 
@@ -184,18 +176,19 @@ where
     }
 
     /// Returns the `ValidatedTransactionState` within.
-    pub(super) fn take_state(&mut self) -> Option<ValidatedTransactionState<'alloc, 'txn, P>> {
+    //pub(super) fn take_state(&mut self) -> Option<ValidatedTransactionState<'alloc, 'txn>> {
+    pub(super) fn take_state(&mut self) -> Option<ValidatedTransactionState<'txn>> {
         self.txn_state.take()
     }
 
-    fn validate(
+    fn validate<'alloc: 'txn>(
         txn: &SignatureCheckedTransaction,
-        module_cache: P,
+        module_cache: &'txn dyn ModuleCache<'alloc>,
         data_cache: &'txn dyn RemoteCache,
         allocator: &'txn Arena<LoadedModule>,
         mode: ValidationMode,
         payload_check: impl Fn() -> Result<(), VMStatus>,
-    ) -> Result<ValidatedTransactionState<'alloc, 'txn, P>, VMStatus> {
+    ) -> Result<ValidatedTransactionState<'txn>, VMStatus> {
         let raw_bytes_len = AbstractMemorySize::new(txn.raw_txn_bytes_len() as GasCarrier);
         // The transaction is too large.
         if txn.raw_txn_bytes_len() > MAX_TRANSACTION_SIZE_IN_BYTES {
@@ -330,31 +323,22 @@ where
 }
 
 /// State for program-based [`ValidatedTransaction`] instances.
-pub(super) struct ValidatedTransactionState<'alloc, 'txn, P>
-where
-    'alloc: 'txn,
-    P: ModuleCache<'alloc>,
-{
+pub(super) struct ValidatedTransactionState<'txn> {
     // <'txn, 'txn> looks weird, but it just means that the module cache passed in (the
     // TransactionModuleCache) allocates for that long.
-    pub(super) txn_executor:
-        TransactionExecutor<'txn, 'txn, TransactionModuleCache<'alloc, 'txn, P>>,
+    pub(super) txn_executor: TransactionExecutor<'txn, 'txn>,
 }
 
-impl<'alloc, 'txn, P> ValidatedTransactionState<'alloc, 'txn, P>
-where
-    'alloc: 'txn,
-    P: ModuleCache<'alloc>,
-{
-    fn new(
+impl<'txn> ValidatedTransactionState<'txn> {
+    fn new<'alloc: 'txn>(
         metadata: TransactionMetadata,
-        module_cache: P,
+        module_cache: &'txn dyn ModuleCache<'alloc>,
         data_cache: &'txn dyn RemoteCache,
         allocator: &'txn Arena<LoadedModule>,
     ) -> Self {
         // This temporary cache is used for modules published by a single transaction.
         let txn_module_cache = TransactionModuleCache::new(module_cache, allocator);
-        let txn_executor = TransactionExecutor::new(txn_module_cache, data_cache, metadata);
+        let txn_executor = TransactionExecutor::new(&txn_module_cache, data_cache, metadata);
         Self { txn_executor }
     }
 }

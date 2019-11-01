@@ -82,7 +82,7 @@ impl<'alloc> VMRuntime<'alloc> {
         };
 
         let process_txn =
-            ProcessTransaction::new(signature_verified_txn, module_cache, &data_cache, &arena);
+            ProcessTransaction::new(signature_verified_txn, &module_cache, &data_cache, &arena);
         let mode = if data_view.is_genesis() {
             ValidationMode::Genesis
         } else {

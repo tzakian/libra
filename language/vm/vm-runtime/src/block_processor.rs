@@ -24,11 +24,11 @@ use libra_types::{
 use rayon::prelude::*;
 use vm_cache_map::Arena;
 
-pub fn execute_user_transaction_block<'alloc>(
+pub fn execute_user_transaction_block<'blk, 'alloc: 'blk>(
     txn_block: Vec<SignedTransaction>,
-    code_cache: &VMModuleCache<'alloc>,
-    script_cache: &ScriptCache<'alloc>,
-    data_view: &dyn StateView,
+    code_cache: &'blk VMModuleCache<'alloc>,
+    script_cache: &'blk ScriptCache<'alloc>,
+    data_view: &'blk dyn StateView,
     publishing_option: &VMPublishingOption,
 ) -> Vec<TransactionOutput> {
     trace!("[VM] Execute block, transaction count: {}", txn_block.len());
@@ -109,19 +109,16 @@ pub fn execute_user_transaction_block<'alloc>(
 /// and this transaction is executed successfully, this function will update `module_cache` to
 /// include those newly published modules. This function will also update the `script_cache` to
 /// cache this `txn`
-fn transaction_flow<'alloc, P>(
+fn transaction_flow<'blk, 'alloc: 'blk>(
     txn: SignatureCheckedTransaction,
-    module_cache: P,
-    script_cache: &ScriptCache<'alloc>,
+    module_cache: &'blk dyn ModuleCache<'alloc>,
+    script_cache: &'blk ScriptCache<'alloc>,
     data_cache: &BlockDataCache<'_>,
     mode: ValidationMode,
     publishing_option: &VMPublishingOption,
-) -> TransactionOutput
-where
-    P: ModuleCache<'alloc>,
-{
+) -> TransactionOutput {
     let arena = Arena::new();
-    let process_txn = ProcessTransaction::new(txn, &module_cache, data_cache, &arena);
+    let process_txn = ProcessTransaction::new(txn, module_cache, data_cache, &arena);
 
     let validated_txn = record_stats! {time_hist | TXN_VALIDATION_TIME_TAKEN | {
     match process_txn.validate(mode, publishing_option) {

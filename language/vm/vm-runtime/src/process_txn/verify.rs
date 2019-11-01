@@ -1,10 +1,10 @@
 use crate::{
-    code_cache::{
-        module_cache::{ModuleCache, TransactionModuleCache},
-        script_cache::ScriptCache,
-    },
+    code_cache::script_cache::ScriptCache,
     loaded_data::function::{FunctionRef, FunctionReference},
-    process_txn::{execute::ExecutedTransaction, validate::ValidatedTransaction},
+    process_txn::{
+        execute::ExecutedTransaction,
+        validate::{ValidatedTransaction, ValidatedTransactionState},
+    },
     txn_executor::TransactionExecutor,
 };
 use bytecode_verifier::{VerifiedModule, VerifiedScript};
@@ -26,27 +26,25 @@ use vm::{
 
 /// Represents a transaction which has been validated and for which the program has been run
 /// through the bytecode verifier.
-pub struct VerifiedTransaction<'alloc, 'txn, P>
+pub struct VerifiedTransaction<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     txn: SignatureCheckedTransaction,
     #[allow(dead_code)]
-    txn_state: Option<VerifiedTransactionState<'alloc, 'txn, P>>,
+    txn_state: Option<VerifiedTransactionState<'alloc, 'txn>>,
 }
 
-impl<'alloc, 'txn, P> VerifiedTransaction<'alloc, 'txn, P>
+impl<'alloc, 'txn> VerifiedTransaction<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     /// Creates a new instance by verifying the bytecode in this validated transaction.
     pub(super) fn new(
-        mut validated_txn: ValidatedTransaction<'alloc, 'txn, P>,
+        mut validated_txn: ValidatedTransaction<'txn>,
         script_cache: &'txn ScriptCache<'alloc>,
     ) -> Result<Self, VMStatus> {
-        let txn_state = validated_txn.take_state();
+        let txn_state: Option<ValidatedTransactionState<'txn>> = validated_txn.take_state();
         let txn = validated_txn.as_inner();
         let txn_state = match txn.payload() {
             TransactionPayload::Program(program) => {
@@ -197,7 +195,7 @@ where
     }
 
     /// Returns the state stored in the transaction, if any.
-    pub(super) fn take_state(&mut self) -> Option<VerifiedTransactionState<'alloc, 'txn, P>> {
+    pub(super) fn take_state(&mut self) -> Option<VerifiedTransactionState<'alloc, 'txn>> {
         self.txn_state.take()
     }
 
@@ -215,13 +213,11 @@ where
 
 /// State for [`VerifiedTransaction`] instances.
 #[allow(dead_code)]
-pub(super) struct VerifiedTransactionState<'alloc, 'txn, P>
+pub(super) struct VerifiedTransactionState<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
-    pub(super) txn_executor:
-        TransactionExecutor<'txn, 'txn, TransactionModuleCache<'alloc, 'txn, P>>,
+    pub(super) txn_executor: TransactionExecutor<'alloc, 'txn>,
     pub(super) verified_txn: VerTxn<'alloc>,
 }
 

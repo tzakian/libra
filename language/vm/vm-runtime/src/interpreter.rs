@@ -75,10 +75,9 @@ lazy_static! {
 // REVIEW: abstract the data store better (maybe a single Trait for both data and event?)
 // The ModuleCache should be a Loader with a proper API.
 // Resolve where GasMeter should live.
-pub struct Interpreter<'alloc, 'txn, P>
+pub struct Interpreter<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     /// Operand stack, where Move `Value`s are stored for stack operations.
     operand_stack: Stack,
@@ -91,13 +90,12 @@ where
     txn_data: TransactionMetadata,
     /// List of events "fired" during the course of an execution.
     // REVIEW: should this live outside the Interpreter?
-    event_data: Vec<ContractEvent>,
+    event_data: &'txn Vec<ContractEvent>,
     /// Data store
     // REVIEW: maybe this and the event should go together as some kind of external context?
-    data_view: TransactionDataCache<'txn>,
+    data_view: &'txn TransactionDataCache<'txn>,
     /// Code cache, this is effectively the loader.
-    module_cache: P,
-    phantom: PhantomData<&'alloc ()>,
+    module_cache: &'txn dyn ModuleCache<'alloc>,
 }
 
 fn derive_type_tag(
@@ -146,10 +144,9 @@ fn derive_type_tag(
     }
 }
 
-impl<'alloc, 'txn, P> Interpreter<'alloc, 'txn, P>
+impl<'alloc, 'txn> Interpreter<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     /// Create a new instance of an `Interpreter` in the context of a transaction with a
     /// given module cache (loader) and a data store.
@@ -157,19 +154,20 @@ where
     // context are well defined. Obviously certain opcodes require a given context, but
     // we may be doing better here...
     pub fn new(
-        module_cache: P,
+        module_cache: &'txn dyn ModuleCache<'alloc>,
         txn_data: TransactionMetadata,
-        data_view: TransactionDataCache<'txn>,
+        data_view: &'txn TransactionDataCache<'txn>,
+        event_data: &'txn Vec<ContractEvent>,
+        gas_meter: &'txn GasMeter,
     ) -> Self {
         Interpreter {
             operand_stack: Stack::new(),
             call_stack: CallStack::new(),
             gas_meter: GasMeter::new(txn_data.max_gas_amount()),
             txn_data,
-            event_data: vec![],
+            event_data,
             data_view,
             module_cache,
-            phantom: PhantomData,
         }
     }
 
@@ -180,8 +178,8 @@ where
     //
 
     /// Returns the module cache for this interpreter.
-    pub fn module_cache(&self) -> &P {
-        &self.module_cache
+    pub fn module_cache(&self) -> &'txn dyn ModuleCache<'alloc> {
+        self.module_cache
     }
 
     /// Disables metering of gas.
@@ -391,7 +389,7 @@ where
                 // to this function.
                 self.gas_meter.calculate_and_consume(
                     instruction,
-                    InterpreterForGasCost::new(&self.operand_stack, &self.module_cache, frame),
+                    InterpreterForGasCost::new(&self.operand_stack, self.module_cache, frame),
                     AbstractMemorySize::new(1),
                 )?;
                 frame.pc += 1;
@@ -545,7 +543,7 @@ where
                             &instruction,
                             InterpreterForGasCost::new(
                                 &self.operand_stack,
-                                &self.module_cache,
+                                self.module_cache,
                                 frame,
                             ),
                             size,
@@ -558,7 +556,7 @@ where
                             &instruction,
                             InterpreterForGasCost::new(
                                 &self.operand_stack,
-                                &self.module_cache,
+                                self.module_cache,
                                 frame,
                             ),
                             size,
@@ -572,7 +570,7 @@ where
                             &instruction,
                             InterpreterForGasCost::new(
                                 &self.operand_stack,
-                                &self.module_cache,
+                                self.module_cache,
                                 frame,
                             ),
                             size,
@@ -586,7 +584,7 @@ where
                             &instruction,
                             InterpreterForGasCost::new(
                                 &self.operand_stack,
-                                &self.module_cache,
+                                self.module_cache,
                                 frame,
                             ),
                             size,

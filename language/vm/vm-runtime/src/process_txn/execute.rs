@@ -1,7 +1,4 @@
-use crate::{
-    code_cache::module_cache::ModuleCache,
-    process_txn::verify::{VerTxn, VerifiedTransaction, VerifiedTransactionState},
-};
+use crate::process_txn::verify::{VerTxn, VerifiedTransaction, VerifiedTransactionState};
 use libra_logger::prelude::*;
 use libra_types::{
     transaction::{TransactionOutput, TransactionPayload, TransactionStatus},
@@ -20,10 +17,9 @@ pub struct ExecutedTransaction {
 
 impl ExecutedTransaction {
     /// Creates a new instance by executing this transaction.
-    pub fn new<'alloc, 'txn, P>(verified_txn: VerifiedTransaction<'alloc, 'txn, P>) -> Self
+    pub fn new<'alloc, 'txn>(verified_txn: VerifiedTransaction<'alloc, 'txn>) -> Self
     where
         'alloc: 'txn,
-        P: ModuleCache<'alloc>,
     {
         let output = execute(verified_txn);
         Self { output }
@@ -35,12 +31,9 @@ impl ExecutedTransaction {
     }
 }
 
-fn execute<'alloc, 'txn, P>(
-    mut verified_txn: VerifiedTransaction<'alloc, 'txn, P>,
-) -> TransactionOutput
+fn execute<'alloc, 'txn>(mut verified_txn: VerifiedTransaction<'alloc, 'txn>) -> TransactionOutput
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     let txn_state = verified_txn.take_state();
 

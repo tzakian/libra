@@ -4,7 +4,6 @@ use crate::{
 };
 use libra_config::config::VMPublishingOption;
 use libra_types::transaction::SignatureCheckedTransaction;
-use std::marker::PhantomData;
 use vm::errors::VMResult;
 use vm_cache_map::Arena;
 
@@ -16,27 +15,24 @@ use validate::{ValidatedTransaction, ValidationMode};
 
 /// The starting point for processing a transaction. All the different states involved are described
 /// through the types present in submodules.
-pub struct ProcessTransaction<'alloc, 'txn, P>
+pub struct ProcessTransaction<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     txn: SignatureCheckedTransaction,
-    module_cache: P,
+    module_cache: &'txn dyn ModuleCache<'alloc>,
     data_cache: &'txn dyn RemoteCache,
     allocator: &'txn Arena<LoadedModule>,
-    phantom: PhantomData<&'alloc ()>,
 }
 
-impl<'alloc, 'txn, P> ProcessTransaction<'alloc, 'txn, P>
+impl<'alloc, 'txn> ProcessTransaction<'alloc, 'txn>
 where
     'alloc: 'txn,
-    P: ModuleCache<'alloc>,
 {
     /// Creates a new instance of `ProcessTransaction`.
     pub fn new(
         txn: SignatureCheckedTransaction,
-        module_cache: P,
+        module_cache: &'txn dyn ModuleCache<'alloc>,
         data_cache: &'txn dyn RemoteCache,
         allocator: &'txn Arena<LoadedModule>,
     ) -> Self {
@@ -45,7 +41,6 @@ where
             module_cache,
             data_cache,
             allocator,
-            phantom: PhantomData,
         }
     }
 
@@ -55,7 +50,7 @@ where
         self,
         mode: ValidationMode,
         publishing_option: &VMPublishingOption,
-    ) -> VMResult<ValidatedTransaction<'alloc, 'txn, P>> {
+    ) -> VMResult<ValidatedTransaction<'txn>> {
         ValidatedTransaction::new(self, mode, publishing_option)
     }
 }
