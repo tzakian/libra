@@ -10,6 +10,7 @@ use crate::{
     counters::*,
     execution_context::InterpreterContext,
     gas,
+    gas_meter::charge_possible_global_write,
     identifier::{create_access_path, resource_storage_key},
     loaded_data::{
         function::{FunctionRef, FunctionReference},
@@ -514,6 +515,7 @@ where
                         let reference = self.operand_stack.pop_as::<ReferenceValue>()?;
                         let value = self.operand_stack.pop()?;
                         gas!(instr: context, self, Opcodes::WRITE_REF, value.size())?;
+                        charge_possible_global_write(context, &reference, value.size())?;
                         reference.write_ref(value);
                     }
                     // Arithmetic Operations
@@ -628,6 +630,8 @@ where
                         self.operand_stack.push(Value::byte_array(byte_array))?;
                     }
                     Bytecode::MutBorrowGlobal(idx, _) | Bytecode::ImmBorrowGlobal(idx, _) => {
+                        // Charge a constant amount before hand
+                        gas!(const_instr: context, self, Opcodes::MUT_BORROW_GLOBAL)?;
                         let addr = self.operand_stack.pop_as::<AccountAddress>()?;
                         let size = self.global_data_op(
                             context,
@@ -636,15 +640,20 @@ where
                             frame.module(),
                             Self::borrow_global,
                         )?;
+                        // Charge the actual gas again
                         gas!(instr: context, self, Opcodes::MUT_BORROW_GLOBAL, size)?;
                     }
                     Bytecode::Exists(idx, _) => {
+                        // Charge a constant amount before the operation
+                        gas!(const_instr: context, self, Opcodes::EXISTS)?;
                         let addr = self.operand_stack.pop_as::<AccountAddress>()?;
                         let size =
                             self.global_data_op(context, addr, *idx, frame.module(), Self::exists)?;
                         gas!(instr: context, self, Opcodes::EXISTS, size)?;
                     }
                     Bytecode::MoveFrom(idx, _) => {
+                        // Charge a constant amount beforehand
+                        gas!(const_instr: context, self, Opcodes::MOVE_FROM)?;
                         let addr = self.operand_stack.pop_as::<AccountAddress>()?;
                         let size = self.global_data_op(
                             context,
@@ -658,6 +667,8 @@ where
                         gas!(instr: context, self, Opcodes::MOVE_FROM, size)?;
                     }
                     Bytecode::MoveToSender(idx, _) => {
+                        // Charge a constant amount beforehand
+                        gas!(const_instr: context, self, Opcodes::MOVE_TO)?;
                         let addr = self.txn_data.sender();
                         let size = self.global_data_op(
                             context,
@@ -713,12 +724,18 @@ where
         type_actual_tags: Vec<TypeTag>,
     ) -> VMResult<Option<Frame<'txn, FunctionRef<'txn>>>> {
         let func = self.module_cache.resolve_function_ref(module, idx)?;
+        let arg_count = func.arg_count();
+        gas!(
+            instr: context,
+            self,
+            Opcodes::CALL,
+            AbstractMemorySize::new((arg_count + 1) as GasCarrier)
+        )?;
         if func.is_native() {
             self.call_native(context, func, type_actual_tags)?;
             Ok(None)
         } else {
             let mut locals = Locals::new(func.local_count());
-            let arg_count = func.arg_count();
             for i in 0..arg_count {
                 locals.store_loc(arg_count - i - 1, self.operand_stack.pop()?)?;
             }

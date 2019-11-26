@@ -24,10 +24,7 @@ use std::{
 use vm::file_format::SignatureToken;
 use vm::{
     errors::*,
-    gas_schedule::{
-        words_in, AbstractMemorySize, GasAlgebra, GasCarrier, CONST_SIZE, REFERENCE_SIZE,
-        STRUCT_SIZE,
-    },
+    gas_schedule::{words_in, AbstractMemorySize, GasAlgebra, GasCarrier, CONST_SIZE, STRUCT_SIZE},
     vm_string::VMString,
     IndexKind,
 };
@@ -664,7 +661,7 @@ impl Reference {
     }
 
     fn size(&self) -> AbstractMemorySize<GasCarrier> {
-        words_in(*REFERENCE_SIZE)
+        words_in(self.0.size())
     }
 
     fn borrow_field(&self, field_offset: usize) -> VMResult<Value> {
@@ -870,7 +867,7 @@ impl GlobalRef {
     }
 
     pub fn size(&self) -> AbstractMemorySize<GasCarrier> {
-        words_in(*REFERENCE_SIZE)
+        words_in(self.reference.size())
     }
 
     fn borrow_field(&self, field_offset: usize) -> VMResult<Value> {
