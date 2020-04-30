@@ -142,6 +142,7 @@ pub(crate) fn run_and_assert_universe(
     prop_assert_eq!(outputs.len(), expected_values.len());
 
     for (idx, (output, expected)) in outputs.iter().zip(&expected_values).enumerate() {
+        println!("output: {:?} expected: {:?}", output.status(), expected.0);
         prop_assert!(
             transaction_status_eq(output.status(), &expected.0),
             "unexpected status for transaction {}",

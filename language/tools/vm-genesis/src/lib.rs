@@ -49,9 +49,6 @@ use vm::{
 // The seed is arbitrarily picked to produce a consistent key. XXX make this more formal?
 const GENESIS_SEED: [u8; 32] = [42; 32];
 
-/// The initial balance of the association account.
-pub const ASSOCIATION_INIT_BALANCE: u64 = 1_000_000_000_000_000;
-
 pub static GENESIS_KEYPAIR: Lazy<(Ed25519PrivateKey, Ed25519PublicKey)> = Lazy::new(|| {
     let mut rng = StdRng::from_seed(GENESIS_SEED);
     let private_key = Ed25519PrivateKey::generate(&mut rng);
@@ -73,8 +70,6 @@ static INITIALIZE_VALIDATOR_SET: Lazy<Identifier> =
     Lazy::new(|| Identifier::new("initialize_validator_set").unwrap());
 static INITIALIZE_DISCOVERY_SET: Lazy<Identifier> =
     Lazy::new(|| Identifier::new("initialize_discovery_set").unwrap());
-static MINT_TO_ADDRESS: Lazy<Identifier> =
-    Lazy::new(|| Identifier::new("mint_to_address").unwrap());
 static RECONFIGURE: Lazy<Identifier> =
     Lazy::new(|| Identifier::new("emit_reconfiguration_event").unwrap());
 static EMIT_DISCOVERY_SET: Lazy<Identifier> =
@@ -456,7 +451,7 @@ fn create_and_initialize_main_accounts(
     move_vm
         .execute_function(
             &account_config::ACCOUNT_MODULE,
-            &CREATE_ACCOUNT_NAME,
+            &name("create_account"),
             gas_schedule,
             interpreter_context,
             &txn_data,
@@ -477,7 +472,7 @@ fn create_and_initialize_main_accounts(
     move_vm
         .execute_function(
             &account_config::ACCOUNT_MODULE,
-            &CREATE_ACCOUNT_NAME,
+            &name("create_account"),
             gas_schedule,
             interpreter_context,
             &txn_data,
@@ -510,7 +505,7 @@ fn create_and_initialize_main_accounts(
         move_vm
             .execute_function(
                 &module("LibraAccount"),
-                &name("create_unhosted_account"),
+                &name("create_root_vasp_account"),
                 &gas_schedule,
                 interpreter_context,
                 &txn_data,
@@ -518,6 +513,9 @@ fn create_and_initialize_main_accounts(
                 vec![
                     Value::address(txn_fee_addr),
                     Value::vector_u8(txn_fee_addr.to_vec()),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
                 ],
             )
             .expect("Failure initializing transaction fee account");
@@ -599,21 +597,6 @@ fn create_and_initialize_main_accounts(
             vec![],
         )
         .expect("Failure initializing block metadata");
-
-    move_vm
-        .execute_function(
-            &account_config::ACCOUNT_MODULE,
-            &MINT_TO_ADDRESS,
-            &gas_schedule,
-            interpreter_context,
-            &txn_data,
-            vec![lbr_ty.clone()],
-            vec![
-                Value::address(association_addr),
-                Value::u64(ASSOCIATION_INIT_BALANCE),
-            ],
-        )
-        .expect("Failure minting to association");
 
     let genesis_auth_key = AuthenticationKey::ed25519(public_key).to_vec();
     move_vm
@@ -702,7 +685,7 @@ fn create_and_initialize_validator_set(
     move_vm
         .execute_function(
             &account_config::ACCOUNT_MODULE,
-            &CREATE_ACCOUNT_NAME,
+            &name("create_root_vasp_account"),
             gas_schedule,
             interpreter_context,
             &txn_data,
@@ -710,6 +693,9 @@ fn create_and_initialize_validator_set(
             vec![
                 Value::address(validator_set_address),
                 Value::vector_u8(validator_set_address.to_vec()),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
             ],
         )
         .unwrap_or_else(|e| {
@@ -746,7 +732,7 @@ fn create_and_initialize_discovery_set(
     move_vm
         .execute_function(
             &account_config::ACCOUNT_MODULE,
-            &CREATE_ACCOUNT_NAME,
+            &name("create_root_vasp_account"),
             gas_schedule,
             interpreter_context,
             &txn_data,
@@ -754,6 +740,9 @@ fn create_and_initialize_discovery_set(
             vec![
                 Value::address(discovery_set_address),
                 Value::vector_u8(discovery_set_address.to_vec()),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
             ],
         )
         .unwrap_or_else(|e| {
@@ -795,7 +784,7 @@ fn initialize_validators(
         move_vm
             .execute_function(
                 &account_config::ACCOUNT_MODULE,
-                &CREATE_ACCOUNT_NAME,
+                &name("create_root_vasp_account"),
                 gas_schedule,
                 interpreter_context,
                 &txn_data,
@@ -803,6 +792,9 @@ fn initialize_validators(
                 vec![
                     Value::address(account),
                     Value::vector_u8(auth_key.prefix().to_vec()),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
+                    Value::vector_u8(vec![]),
                 ],
             )
             .unwrap_or_else(|e| panic!("Failure creating validator account {:?}: {}", account, e));
@@ -945,19 +937,18 @@ fn reconfigure(
 /// Verify the consistency of the genesis `WriteSet`
 fn verify_genesis_write_set(events: &[ContractEvent]) {
     // Sanity checks on emitted events:
-    // (1) The genesis tx should emit 4 events: a pair of payment sent/received events for
-    // minting to the genesis address, a ValidatorSetChangeEvent, and a
+    // (1) The genesis tx should emit 2 events: a ValidatorSetChangeEvent, and a
     // DiscoverySetChangeEvent.
     assert_eq!(
         events.len(),
-        4,
-        "Genesis transaction should emit four events, but found {} events: {:?}",
+        2,
+        "Genesis transaction should emit 2 events, but found {} events: {:?}",
         events.len(),
         events,
     );
 
-    // (2) The third event should be the new epoch event
-    let new_epoch_event = &events[2];
+    // (2) The first event should be the new epoch event
+    let new_epoch_event = &events[0];
     assert_eq!(
         *new_epoch_event.key(),
         new_epoch_event_key(),

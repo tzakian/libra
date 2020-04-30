@@ -23,7 +23,7 @@ fn initial_libra_version() {
         vec![TransactionArgument::U64(2)],
         1,
         TXN_RESERVED,
-        1,
+        0,
     );
     executor.new_block();
     executor.execute_and_apply(txn);

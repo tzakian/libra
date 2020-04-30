@@ -36,7 +36,7 @@ proptest! {
     /// Test with balances small enough to possibly trigger failures.
     #[test]
     fn create_account_low_balance(
-        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 0u64..100_000),
+        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 800_000u64..1_000_000),
         transfers in vec(any_with::<CreateAccountGen>((1, 50_000)), 0..default_num_transactions()),
     ) {
         run_and_assert_universe(universe, transfers)?;

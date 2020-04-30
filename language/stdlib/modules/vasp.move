@@ -69,19 +69,9 @@ module VASP {
         // account type.
         Transaction::assert(AccountType::is_a<RootVASP>(addr), 7001);
         let root_vasp = AccountType::account_metadata<RootVASP>(addr);
-        root_vasp.expiration_date = LibraTimestamp::now_microseconds() + cert_lifetime();
+        root_vasp.expiration_date = current_time() + cert_lifetime();
         // The sending account must have a TransitionCapability<RootVASP>.
         AccountType::update<RootVASP>(addr, root_vasp);
-    }
-
-    // A certification of a VASP with its root account at `addr` can only
-    // happen if there is an uncertified RootVASP account type published
-    // under the address.
-    public fun grant_vasp(addr: address) {
-        assert_sender_is_assoc_vasp_privileged();
-        // The sending account must have a TransitionCapability<RootVASP> capability
-        AccountType::transition<RootVASP>(addr);
-        AccountType::certify_granting_capability<ChildVASP>(addr);
     }
 
     // Non-destructively decertify the root vasp at `addr`. Can be
@@ -110,32 +100,42 @@ module VASP {
     // To-be root-vasp called functions
     ///////////////////////////////////////////////////////////////////////////
 
-    // An account that wishes to become a root VASP account publishes an
-    // `AccountType<RootVASP>` resource under their account. However, they
-    // are not a root VASP until the association certifies this account
-    // type resource.
-    public fun apply_for_vasp_root_credential(
+    public fun create_root_vasp_credential(
         human_name: vector<u8>,
         base_url: vector<u8>,
         ca_cert: vector<u8>,
-    ) {
-        let current_time = LibraTimestamp::now_microseconds();
-        AccountType::apply_for<RootVASP>(RootVASP {
-            expiration_date: current_time + cert_lifetime(),
-            human_name,
-            base_url,
-            ca_cert,
-        }, singleton_addr());
-        AccountType::apply_for_granting_capability<ChildVASP>();
+    ): RootVASP {
+        // XXX: This restriction is not present in testnet
+        //assert_sender_is_assoc_vasp_privileged();
+        RootVASP {
+            expiration_date: current_time() + cert_lifetime(),
+             human_name,
+             base_url,
+             ca_cert,
+        }
+    }
+
+    public fun create_child_vasp_credential(): ChildVASP {
+        let sender = Transaction::sender();
+        Transaction::assert(
+            is_root_vasp(sender) || is_parent_vasp(sender),
+            7000
+        );
+        ChildVASP { is_certified: true }
+    }
+
+    // The association says that this VASP can have parent accounts.
+    public fun grant_parent_accounts(root_vasp_addr: address) {
+        AccountType::certify_granting_capability<ChildVASP>(root_vasp_addr);
     }
 
     // Child accounts for VASPs are not allowed by default. Calling this
     // function from the root VASP account allows child accounts to be
     // created for the calling VASP account.
-    public fun allow_child_accounts() {
-        let sender = Transaction::sender();
-        AccountType::apply_for_transition_capability<ChildVASP>(sender);
-        AccountType::grant_transition_capability<ChildVASP>(sender);
+    public fun apply_for_parent_accounts() {
+        Transaction::assert(is_root_vasp(Transaction::sender()), 7000);
+        // Apply to allow parent accounts
+        AccountType::apply_for_granting_capability<ChildVASP>();
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -278,13 +278,6 @@ module VASP {
         is_root_vasp(addr) || is_child_vasp(addr)
     }
 
-    // Return whether or not the root VASP at `root_vasp_addr` allows child
-    // accounts.
-    public fun allows_child_accounts(root_vasp_addr: address): bool {
-        is_root_vasp(root_vasp_addr) &&
-        AccountType::has_transition_cap<ChildVASP>(root_vasp_addr)
-    }
-
     ///////////////////////////////////////////////////////////////////////////
     // Root VASP credential field accessors.
     ///////////////////////////////////////////////////////////////////////////
@@ -321,7 +314,7 @@ module VASP {
     }
 
     fun root_credential_expired(root_credential: &RootVASP): bool {
-        root_credential.expiration_date < LibraTimestamp::now_microseconds()
+        root_credential.expiration_date < current_time()
     }
 
     fun assert_sender_is_assoc_vasp_privileged() {
@@ -335,5 +328,9 @@ module VASP {
     // A year in microseconds
     fun cert_lifetime(): u64 {
         31540000000000
+    }
+
+    fun current_time(): u64 {
+        if (LibraTimestamp::is_genesis()) 0 else LibraTimestamp::now_microseconds()
     }
 }

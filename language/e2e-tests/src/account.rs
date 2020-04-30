@@ -424,7 +424,7 @@ impl AccountType {
         }
     }
 
-    pub fn make_unhosted(&mut self) {
+    pub fn make_vasp(&mut self) {
         self.is_empty_account = false;
     }
 
@@ -433,14 +433,19 @@ impl AccountType {
         self.is_empty_account
     }
 
-    fn account_limit_type() -> FatStructType {
+    fn root_vasp_type() -> FatStructType {
         FatStructType {
             address: account_config::CORE_CODE_ADDRESS,
-            module: account_config::account_limits_module_name().to_owned(),
-            name: account_config::account_limits_window_struct_name().to_owned(),
+            module: account_config::vasp_type_module_name().to_owned(),
+            name: account_config::root_vasp_type_struct_name().to_owned(),
             is_resource: false,
             ty_args: vec![],
-            layout: vec![FatType::U64, FatType::U64, FatType::U64, FatType::U64],
+            layout: vec![
+                FatType::Vector(Box::new(FatType::U8)),
+                FatType::Vector(Box::new(FatType::U8)),
+                FatType::U64,
+                FatType::Vector(Box::new(FatType::U8)),
+            ],
         }
     }
 
@@ -450,10 +455,10 @@ impl AccountType {
             Struct::pack(vec![Value::bool(false)])
         } else {
             Struct::pack(vec![Value::struct_(Struct::pack(vec![
+                Value::vector_u8(vec![]),
+                Value::vector_u8(vec![]),
                 Value::u64(0),
-                Value::u64(0),
-                Value::u64(0),
-                Value::u64(0),
+                Value::vector_u8(vec![]),
             ]))])
         };
         Value::struct_(Struct::pack(vec![
@@ -474,14 +479,14 @@ impl AccountType {
         }
     }
 
-    fn unhosted_account_type() -> FatStructType {
+    fn vasp_account_type() -> FatStructType {
         FatStructType {
             address: account_config::CORE_CODE_ADDRESS,
-            module: account_config::unhosted_type_module_name().to_owned(),
-            name: account_config::unhosted_type_struct_name().to_owned(),
+            module: account_config::vasp_type_module_name().to_owned(),
+            name: account_config::root_vasp_type_struct_name().to_owned(),
             is_resource: false,
             ty_args: vec![],
-            layout: vec![FatType::Struct(Box::new(Self::account_limit_type()))],
+            layout: vec![FatType::Struct(Box::new(Self::root_vasp_type()))],
         }
     }
 
@@ -500,7 +505,7 @@ impl AccountType {
         let inner_type = if is_empty_account {
             Self::empty_account_type()
         } else {
-            Self::unhosted_account_type()
+            Self::vasp_account_type()
         };
         vec![
             FatType::Bool,
@@ -711,8 +716,8 @@ impl AccountData {
         }
     }
 
-    pub fn make_unhosted(&mut self) {
-        self.account_type.make_unhosted();
+    pub fn make_vasp(&mut self) {
+        self.account_type.make_vasp();
     }
 
     /// Returns the (Move value) layout of the LibraAccount::T struct

@@ -82,8 +82,6 @@ pub static ASSOCIATION_MODULE: Lazy<ModuleId> = Lazy::new(|| {
 });
 
 // Names for special functions and structs
-pub static CREATE_ACCOUNT_NAME: Lazy<Identifier> =
-    Lazy::new(|| Identifier::new("create_unhosted_account").unwrap());
 pub static PROLOGUE_NAME: Lazy<Identifier> = Lazy::new(|| Identifier::new("prologue").unwrap());
 pub static EPILOGUE_NAME: Lazy<Identifier> = Lazy::new(|| Identifier::new("epilogue").unwrap());
 pub static BLOCK_PROLOGUE: Lazy<Identifier> =

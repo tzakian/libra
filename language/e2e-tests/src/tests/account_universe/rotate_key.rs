@@ -34,7 +34,7 @@ proptest! {
 
     #[test]
     fn rotate_key_low_balance(
-        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 0u64..100_000),
+        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 600_000u64..1_000_000),
         key_rotations in vec(any::<RotateKeyGen>(), 0..default_num_transactions()),
     ) {
         run_and_assert_universe(universe, key_rotations)?;

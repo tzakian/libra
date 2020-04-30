@@ -39,7 +39,7 @@ proptest! {
     /// Test with balances small enough to possibly trigger failures.
     #[test]
     fn p2p_low_balance(
-        universe in AccountUniverseGen::strategy(2..default_num_accounts(), 0u64..100_000),
+        universe in AccountUniverseGen::strategy(2..default_num_accounts(), 700_000u64..800_000),
         transfers in vec(any_with::<P2PTransferGen>((1, 50_000)), 0..default_num_transactions()),
     ) {
         run_and_assert_universe(universe, transfers)?;
@@ -70,7 +70,7 @@ proptest! {
     /// Test with balances small enough to possibly trigger failures.
     #[test]
     fn p2p_new_receiver_low_balance(
-        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 0u64..100_000),
+        universe in AccountUniverseGen::strategy(1..default_num_accounts(), 700_000u64..800_000),
         transfers in vec(any_with::<P2PNewReceiverGen>((1, 50_000)), 0..default_num_transactions()),
     ) {
         run_and_assert_universe(universe, transfers)?;

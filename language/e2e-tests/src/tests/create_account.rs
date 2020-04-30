@@ -3,7 +3,7 @@
 
 use crate::{
     account::{Account, AccountData},
-    common_transactions::create_account_txn,
+    common_transactions::{create_account_txn, create_child_account_txn},
     executor::FakeExecutor,
 };
 use libra_types::{
@@ -42,6 +42,26 @@ fn create_account() {
     assert_eq!(initial_amount, updated_receiver_balance.coin(),);
     assert_eq!(sender_balance, updated_sender_balance.coin(),);
     assert_eq!(11, updated_sender.sequence_number());
+}
+
+#[test]
+fn create_child_account() {
+    let mut executor = FakeExecutor::from_genesis_file();
+    // create and publish a sender with 1_000_000 coins
+    let sender = AccountData::new(1_000_000, 10);
+    executor.add_account_data(&sender);
+    let new_account = Account::new();
+    let initial_amount = 1_000;
+    let txn = create_child_account_txn(sender.account(), &new_account, 10, initial_amount);
+
+    // execute transaction
+    let output = executor.execute_transaction(txn);
+    assert_eq!(
+        output.status(),
+        &TransactionStatus::Keep(VMStatus::new(StatusCode::EXECUTED))
+    );
+    println!("write set {:?}", output.write_set());
+    executor.apply_write_set(output.write_set());
 }
 
 #[test]

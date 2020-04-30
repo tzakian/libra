@@ -26,7 +26,7 @@ pub fn add_validator_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED * 2,
-        1,
+        0,
     )
 }
 
@@ -48,9 +48,31 @@ pub fn create_account_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED,
-        1,
+        0,
     )
 }
+
+pub fn create_child_account_txn(
+    sender: &Account,
+    new_account: &Account,
+    seq_num: u64,
+    initial_amount: u64,
+) -> SignedTransaction {
+    let mut args: Vec<TransactionArgument> = Vec::new();
+    args.push(TransactionArgument::Address(*new_account.address()));
+    args.push(TransactionArgument::U8Vector(new_account.auth_key_prefix()));
+    args.push(TransactionArgument::U64(initial_amount));
+
+    sender.create_signed_txn_with_args(
+        StdlibScript::CreateChildVaspAccount.compiled_bytes().into_vec(),
+        vec![lbr_type_tag()],
+        args,
+        seq_num,
+        gas_costs::TXN_RESERVED,
+        0,
+    )
+}
+
 
 /// Returns a transaction to transfer coin from one account to another (possibly new) one, with the
 /// given arguments.
@@ -72,7 +94,7 @@ pub fn peer_to_peer_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED, // this is a default for gas
-        1,                       // this is a default for gas
+        0,                       // this is a default for gas
     )
 }
 
@@ -101,7 +123,7 @@ pub fn register_validator_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED,
-        1,
+        0,
     )
 }
 
@@ -116,7 +138,7 @@ pub fn rotate_key_txn(sender: &Account, new_key_hash: Vec<u8>, seq_num: u64) -> 
         args,
         seq_num,
         gas_costs::TXN_RESERVED,
-        1,
+        0,
     )
 }
 
@@ -136,7 +158,7 @@ pub fn raw_rotate_key_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED,
-        1,
+        0,
     )
 }
 
@@ -155,7 +177,7 @@ pub fn rotate_consensus_pubkey_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED * 3,
-        1,
+        0,
     )
 }
 
@@ -178,6 +200,6 @@ pub fn mint_txn(
         args,
         seq_num,
         gas_costs::TXN_RESERVED, // this is a default for gas
-        1,                       // this is a default for gas
+        0,                       // this is a default for gas
     )
 }

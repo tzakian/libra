@@ -68,33 +68,18 @@ fun main() {
 //! new-transaction
 //! sender: vasp
 //! gas-price: 0
-use 0x0::VASP;
-use 0x0::LCS;
 fun main() {
-    VASP::apply_for_vasp_root_credential(
-        LCS::to_bytes<address>(&0xAAA),
-        LCS::to_bytes<address>(&0xBBB),
-        LCS::to_bytes<address>(&0xCCC),
-    );
+    0x0::VASP::apply_for_child_accounts();
 }
 // check: EXECUTED
 
 //! new-transaction
 //! sender: association
-use 0x0::VASP;
-use 0x0::Association;
-fun main() {
-    Association::apply_for_privilege<VASP::CreationPrivilege>();
-    Association::grant_privilege<VASP::CreationPrivilege>({{association}});
-    VASP::grant_vasp({{vasp}});
-}
-// check: EXECUTED
-
-//! new-transaction
-//! sender: vasp
 //! gas-price: 0
 fun main() {
-    0x0::VASP::allow_child_accounts();
+    0x0::Association::apply_for_privilege<0x0::VASP::CreationPrivilege>();
+    0x0::Association::grant_privilege<0x0::VASP::CreationPrivilege>({{association}});
+    0x0::VASP::grant_child_accounts({{vasp}});
 }
 // check: EXECUTED
 

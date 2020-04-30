@@ -15,7 +15,7 @@ use once_cell::sync::Lazy;
 /// The gas each transaction is configured to reserve. If the gas available in the account,
 /// converted to microlibra, falls below this threshold, transactions are expected to fail with
 /// an insufficient balance.
-pub const TXN_RESERVED: u64 = 500_000;
+pub const TXN_RESERVED: u64 = 600_000;
 
 /// The gas cost of a first time create-account transaction.
 ///
@@ -149,7 +149,7 @@ pub static PEER_TO_PEER_TOO_LOW: Lazy<u64> = Lazy::new(|| {
     let mut executor = FakeExecutor::from_genesis_file();
     // The gas amount is the minimum that needs to be reserved, so use a value that's clearly
     // higher than that.
-    let balance = TXN_RESERVED + 10_000;
+    let balance = TXN_RESERVED + 100_000;
     let sender = AccountData::new(balance, 10);
     let receiver = AccountData::new(1_000_000, 10);
     executor.add_account_data(&sender);

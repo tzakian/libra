@@ -50,25 +50,41 @@ macro_rules! to_txn_arg {
     };
 }
 
+macro_rules! add_preconditions {
+    // Dummy expr to make rust happy
+    () => {1};
+    ($precond:expr) => {
+        $precond
+    };
+    ($precond:expr, $($rest:expr),+) => {
+        $precond;
+        add_preconditions!($($rest),+)
+    }
+}
+
 macro_rules! encode_txn_script {
     (name: $name:ident,
      type_arg: $ty_arg_name:ident,
      args: [$($arg_name:ident: $arg_ty:ident),*],
      script: $script_name:ident,
-     doc: $comment:literal
+     doc: $comment:literal,
+     $(precondition: $precond:expr),*
     ) => {
         #[doc=$comment]
         pub fn $name($ty_arg_name: TypeTag, $($arg_name: to_rust_ty!($arg_ty),)*) -> Script {
+            add_preconditions!($($precond),*);
             encode_txn_script!([$ty_arg_name], [$($arg_name: $arg_ty),*], $script_name)
         }
     };
     (name: $name:ident,
      args: [$($arg_name:ident: $arg_ty:ident),*],
      script: $script_name:ident,
-     doc: $comment:literal
+     doc: $comment:literal,
+     $(precondition: $precond:expr),*
     ) => {
         #[doc=$comment]
         pub fn $name($($arg_name: to_rust_ty!($arg_ty),)*) -> Script {
+            add_preconditions!($($precond),*);
             encode_txn_script!([], [$($arg_name: $arg_ty),*], $script_name)
         }
     };
@@ -103,7 +119,7 @@ encode_txn_script! {
     script: AddValidator,
     doc: "Encode a program adding `new_validator` to the pending validator set. Fails if the\
           `new_validator` address is already in the validator set, already in the pending valdiator set,\
-          or does not have a `ValidatorConfig` resource stored at the address"
+          or does not have a `ValidatorConfig` resource stored at the address",
 }
 
 encode_txn_script! {
@@ -114,7 +130,7 @@ encode_txn_script! {
     doc: "Encode a program that deposits `amount` LBR in `payee`'s account if the `signature` on the\
           payment metadata matches the public key stored in the `payee`'s ApprovedPayment` resource.\
           Aborts if the signature does not match, `payee` does not have an `ApprovedPayment` resource, or\
-          the sender's balance is less than `amount`."
+          the sender's balance is less than `amount`.",
 }
 
 encode_txn_script! {
@@ -124,7 +140,7 @@ encode_txn_script! {
     script: Burn,
     doc: "Permanently destroy the coins stored in the oldest burn request under the `Preburn`\
           resource stored at `preburn_address`. This will only succeed if the sender has a\
-          `MintCapability` stored under their account and `preburn_address` has a pending burn request"
+          `MintCapability` stored under their account and `preburn_address` has a pending burn request",
 }
 
 encode_txn_script! {
@@ -133,32 +149,18 @@ encode_txn_script! {
     args: [preburn_address: Address],
     script: CancelBurn,
     doc: "Cancel the oldest burn request from `preburn_address` and return the funds to\
-          `preburn_address`.  Fails if the sender does not have a published `MintCapability`."
+          `preburn_address`.  Fails if the sender does not have a published `MintCapability`.",
 }
 
-/// Encode a program transferring `amount` coins from `sender` to `recipient` with associated
-/// metadata `metadata`. Fails if there is no account at the recipient address or if the sender's
-/// balance is lower than `amount`.
-pub fn encode_transfer_with_metadata_script(
-    type_: TypeTag,
-    recipient: &AccountAddress,
-    auth_key_prefix: Vec<u8>,
-    amount: u64,
-    metadata: Vec<u8>,
-) -> Script {
-    validate_auth_key_prefix(&auth_key_prefix);
-    Script::new(
-        StdlibScript::PeerToPeerWithMetadata
-            .compiled_bytes()
-            .into_vec(),
-        vec![type_],
-        vec![
-            TransactionArgument::Address(*recipient),
-            TransactionArgument::U8Vector(auth_key_prefix),
-            TransactionArgument::U64(amount),
-            TransactionArgument::U8Vector(metadata),
-        ],
-    )
+encode_txn_script! {
+    name: encode_transfer_with_metadata_script,
+    type_arg: type_,
+    args: [recipient: Address, auth_key_prefix: Bytes, amount: U64, metadata: Bytes],
+    script: PeerToPeerWithMetadata,
+    doc: "Encode a program transferring `amount` coins from `sender` to `recipient` with associated\
+          metadata `metadata`. Fails if there is no account at the recipient address or if the sender's\
+          balance is lower than `amount`.",
+    precondition: validate_auth_key_prefix(&auth_key_prefix)
 }
 
 /// Encode a program transferring `amount` coins from `sender` to `recipient` but pad the output
@@ -201,28 +203,18 @@ encode_txn_script! {
     args: [amount: U64],
     script: Preburn,
     doc: "Preburn `amount` coins from the sender's account. This will only succeed if the sender\
-          already has a published `Preburn` resource."
+          already has a published `Preburn` resource.",
 }
 
-/// Encode a program creating a fresh account at `account_address` with `initial_balance` coins
-/// transferred from the sender's account balance. Fails if there is already an account at
-/// `account_address` or if the sender's balance is lower than `initial_balance`.
-pub fn encode_create_account_script(
-    token: TypeTag,
-    account_address: &AccountAddress,
-    auth_key_prefix: Vec<u8>,
-    initial_balance: u64,
-) -> Script {
-    validate_auth_key_prefix(&auth_key_prefix);
-    Script::new(
-        StdlibScript::CreateAccount.compiled_bytes().into_vec(),
-        vec![token],
-        vec![
-            TransactionArgument::Address(*account_address),
-            TransactionArgument::U8Vector(auth_key_prefix),
-            TransactionArgument::U64(initial_balance),
-        ],
-    )
+encode_txn_script! {
+    name: encode_create_account_script,
+    type_arg: token,
+    args: [account_address: Address, auth_key_prefix: Bytes, initial_balance: U64],
+    script: CreateAccount,
+    doc: "Encode a program creating a fresh account at `account_address` with `initial_balance` coins\
+          transferred from the sender's account balance. Fails if there is already an account at\
+          `account_address` or if the sender's balance is lower than `initial_balance`.",
+    precondition: validate_auth_key_prefix(&auth_key_prefix)
 }
 
 encode_txn_script! {
@@ -230,7 +222,7 @@ encode_txn_script! {
     args: [public_key: Bytes],
     script: RegisterApprovedPayment,
     doc: "Publish a newly created `ApprovedPayment` resource under the sender's account with approval key\
-         `public_key`. Aborts if the sender already has a published `ApprovedPayment` resource."
+         `public_key`. Aborts if the sender already has a published `ApprovedPayment` resource.",
 }
 
 encode_txn_script! {
@@ -239,7 +231,7 @@ encode_txn_script! {
     args: [],
     script: RegisterPreburner,
     doc: "Publish a newly created `Preburn` resource under the sender's account.\
-          This will fail if the sender already has a published `Preburn` resource."
+          This will fail if the sender already has a published `Preburn` resource.",
 }
 
 encode_txn_script! {
@@ -256,7 +248,7 @@ encode_txn_script! {
     doc: "Encode a program registering the sender as a candidate validator with the given key information.\
          `network_signing_pubkey` should be a Ed25519 public key\
          `network_identity_pubkey` should be a X25519 public key\
-         `consensus_pubkey` should be a Ed25519 public c=key."
+         `consensus_pubkey` should be a Ed25519 public c=key.",
 }
 
 encode_txn_script! {
@@ -264,14 +256,14 @@ encode_txn_script! {
     args: [to_remove: Address],
     script: RemoveValidator,
     doc: "Encode a program adding `to_remove` to the set of pending validator removals. Fails if\
-          the `to_remove` address is already in the validator set or already in the pending removals."
+          the `to_remove` address is already in the validator set or already in the pending removals.",
 }
 
 encode_txn_script! {
     name: encode_rotate_consensus_pubkey_script,
     args: [new_key: Bytes],
     script: RotateConsensusPubkey,
-    doc: "Encode a program that rotates the sender's consensus public key to `new_key`."
+    doc: "Encode a program that rotates the sender's consensus public key to `new_key`.",
 }
 
 encode_txn_script! {
@@ -279,27 +271,17 @@ encode_txn_script! {
     args: [new_hashed_key: Bytes],
     script: RotateAuthenticationKey,
     doc: "Encode a program that rotates the sender's authentication key to `new_key`. `new_key`\
-          should be a 256 bit sha3 hash of an ed25519 public key."
+          should be a 256 bit sha3 hash of an ed25519 public key.",
 }
 
 // TODO: this should go away once we are no longer using it in tests
-/// Encode a program creating `amount` coins for sender
-pub fn encode_mint_script(
-    token: TypeTag,
-    sender: &AccountAddress,
-    auth_key_prefix: Vec<u8>,
-    amount: u64,
-) -> Script {
-    validate_auth_key_prefix(&auth_key_prefix);
-    Script::new(
-        StdlibScript::Mint.compiled_bytes().into_vec(),
-        vec![token],
-        vec![
-            TransactionArgument::Address(*sender),
-            TransactionArgument::U8Vector(auth_key_prefix),
-            TransactionArgument::U64(amount),
-        ],
-    )
+encode_txn_script! {
+    name: encode_mint_script,
+    type_arg: token,
+    args: [sender: Address, auth_key_prefix: Bytes, amount: U64],
+    script: Mint,
+    doc: "Encode a program creating `amount` coins for sender",
+    precondition: validate_auth_key_prefix(&auth_key_prefix)
 }
 
 pub fn encode_publishing_option_script(config: VMPublishingOption) -> Script {
@@ -344,7 +326,7 @@ encode_txn_script! {
     args: [amount_lbr: U64],
     script: MintLbr,
     doc: "Mints `amount_lbr` LBR from the sending account's constituent coins and deposits the\
-          resulting LBR into the sending account."
+          resulting LBR into the sending account.",
 }
 
 encode_txn_script! {
@@ -352,7 +334,7 @@ encode_txn_script! {
     args: [amount_lbr: U64],
     script: UnmintLbr,
     doc: "Unmints `amount_lbr` LBR from the sending account into the constituent coins and deposits\
-          the resulting coins into the sending account."
+          the resulting coins into the sending account.",
 }
 
 //...........................................................................
@@ -373,14 +355,14 @@ encode_txn_script! {
     script: AddCurrency,
     doc: "Add a new currency of type `type_` to the system with exchange rate given by\
         `exchange_rate_denom/exchange_rate_num and with the specified scaling_factor, and\
-        fractional_part"
+        fractional_part",
 }
 
 encode_txn_script! {
     name: encode_apply_for_association_address,
     args: [],
     script: ApplyForAssociationAddress,
-    doc: "Applies for the sending account to be added to the set of association addresses encoded on-chain"
+    doc: "Applies for the sending account to be added to the set of association addresses encoded on-chain",
 }
 
 encode_txn_script! {
@@ -388,7 +370,7 @@ encode_txn_script! {
     type_arg: privilege,
     args: [],
     script: ApplyForAssociationPrivilege,
-    doc: "Applies for the sending account to have the association privilege given by `privilege` to the sending account"
+    doc: "Applies for the sending account to have the association privilege given by `privilege` to the sending account",
 }
 
 encode_txn_script! {
@@ -396,14 +378,14 @@ encode_txn_script! {
     args: [addr: Address],
     script: GrantAssociationAddress,
     doc: "Grants the address at `addr` association privileges. `addr` must have previously applied\
-          for association privileges."
+          for association privileges.",
 }
 
 encode_txn_script! {
     name: encode_remove_association_address,
     args: [addr: Address],
     script: RemoveAssociationAddress,
-    doc: "Removes the address at `addr` from the set of association addresses encoded on-chain."
+    doc: "Removes the address at `addr` from the set of association addresses encoded on-chain.",
 }
 
 encode_txn_script! {
@@ -412,7 +394,7 @@ encode_txn_script! {
     args: [addr: Address],
     script: GrantAssociationPrivilege,
     doc: "Grants the address at `addr` the specific privilege given by `privilege`. `addr` must\
-          have previously applied for the `privilege` privilege."
+          have previously applied for the `privilege` privilege.",
 }
 
 encode_txn_script! {
@@ -420,7 +402,7 @@ encode_txn_script! {
     type_arg: privilege,
     args: [addr: Address],
     script: RemoveAssociationPrivilege,
-    doc: "Removes the association privilege given by `privilege` from the account at `addr`."
+    doc: "Removes the association privilege given by `privilege` from the account at `addr`.",
 }
 
 encode_txn_script! {
@@ -429,7 +411,7 @@ encode_txn_script! {
     args: [new_exchange_rate_denominator: U64, new_exchange_rate_numerator: U64],
     script: UpdateExchangeRate,
     doc: "Updates the on-chain exchange rate to LBR for the given `currency` to be given by\
-         `new_exchange_rate_denominator/new_exchange_rate_numerator`."
+         `new_exchange_rate_denominator/new_exchange_rate_numerator`.",
 }
 
 encode_txn_script! {
@@ -437,7 +419,7 @@ encode_txn_script! {
     type_arg: currency,
     args: [allow_minting: Bool],
     script: UpdateMintingAbility,
-    doc: "Allows--true--or disallows--false--minting of `currency` based upon `allow_minting`."
+    doc: "Allows--true--or disallows--false--minting of `currency` based upon `allow_minting`.",
 }
 
 //...........................................................................
@@ -445,11 +427,10 @@ encode_txn_script! {
 //...........................................................................
 
 encode_txn_script! {
-    name: encode_apply_for_child_vasp_credential,
-    args: [root_vasp_address: Address],
-    script: ApplyForChildVaspCredential,
-    doc: "Applies for the sending account to be added as a child account for VAPS with root account\
-          at `root_vasp_address`."
+    name: encode_apply_for_parent_accounts,
+    args: [],
+    script: ApplyForParentAccounts,
+    doc: "Applies for the VASP at the sending address to allow parent accounts",
 }
 
 encode_txn_script! {
@@ -457,43 +438,28 @@ encode_txn_script! {
     args: [],
     script: ApplyForParentCapability,
     doc: "Applies for the sending account to be added as a parent account for a VASP. The sender\
-          must already be VASP account."
+          must already be VASP account.",
 }
 
 encode_txn_script! {
-    name: encode_apply_for_root_vasp,
-    args: [human_name: Bytes, base_url: Bytes, ca_cert: Bytes],
-    script: ApplyForRootVasp,
-    doc: "Applies for the sending account to be added as a root VASP account."
-}
-
-encode_txn_script! {
-    name: encode_allow_child_accounts,
-    args: [],
-    script: AllowChildAccounts,
-    doc: "Allows child accounts to be created for the calling account if it is a root VASP account."
-}
-
-encode_txn_script! {
-    name: encode_grant_child_account,
-    args: [child_address: Address],
-    script: GrantChildAccount,
-    doc: "Grants the account at `child_address` application to be a child account for the VASP that\
-          the sending account belongs to."
+    name: encode_grant_parent_accounts,
+    args: [root_vasp_addr: Address],
+    script: GrantParentAccounts,
+    doc: "Allows child accounts to be created for the calling account if it is a root VASP account.",
 }
 
 encode_txn_script! {
     name: encode_recertify_child_account,
     args: [child_address: Address],
     script: RecertifyChildAccount,
-    doc: "Recertifies the child account at `child_address` if it has been previously decertified/removed"
+    doc: "Recertifies the child account at `child_address` if it has been previously decertified/removed",
 }
 
 encode_txn_script! {
     name: encode_remove_child_account,
     args: [child_address: Address],
     script: RemoveChildAccount,
-    doc: "Removes the child account at `child_address`. It can be recertified in the future however."
+    doc: "Removes the child account at `child_address`. It can be recertified in the future however.",
 }
 
 encode_txn_script! {
@@ -501,20 +467,31 @@ encode_txn_script! {
     args: [parent_address: Address],
     script: GrantParentAccount,
     doc: "Grants the account at `parent_address` application to be a parent account w.r.t. the root\
-          VASP at the sending account."
+          VASP at the sending account.",
 }
 
 encode_txn_script! {
-    name: encode_grant_vasp_account,
-    args: [root_address: Address],
-    script: GrantVaspAccount,
+    name: encode_create_vasp_account,
+    type_arg: type_,
+    args: [fresh_address: Address, auth_key_prefix: Bytes, human_name: Bytes, base_url: Bytes, ca_cert: Bytes],
+    script: CreateRootVaspAccount,
     doc: "Grants the account's application at `root_address` to be a root VASP account. The sending\
-          account must have the association privilege: VASP::CreationPrivilege."
+          account must have the association privilege: VASP::CreationPrivilege.",
+    precondition: validate_auth_key_prefix(&auth_key_prefix)
+}
+
+encode_txn_script! {
+    name: encode_create_child_vasp_account,
+    type_arg: type_,
+    args: [fresh_address: Address, auth_key_prefix: Bytes],
+    script: CreateChildVaspAccount,
+    doc: "Creates a child account for the root/parent VASP account that calls this",
+    precondition: validate_auth_key_prefix(&auth_key_prefix)
 }
 
 encode_txn_script! {
     name: encode_remove_parent_account,
     args: [parent_address: Address],
     script: RemoveParentAccount,
-    doc: "Removes the parent account at `parent_address`. It can be recertified in the future however."
+    doc: "Removes the parent account at `parent_address`. It can be recertified in the future however.",
 }

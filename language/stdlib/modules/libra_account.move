@@ -10,7 +10,7 @@ module LibraAccount {
     use 0x0::Transaction;
     use 0x0::Vector;
     use 0x0::AccountType;
-    use 0x0::Unhosted;
+    use 0x0::VASP;
     use 0x0::Empty;
     use 0x0::AccountTrack;
     use 0x0::Association;
@@ -354,20 +354,39 @@ module LibraAccount {
     // key `auth_key_prefix` | `fresh_address`
     // Creating an account at address 0x0 will cause runtime failure as it is a
     // reserved address for the MoveVM.
-    public fun create_unhosted_account<Token>(fresh_address: address, auth_key_prefix: vector<u8>)
-    acquires AccountOperationsCapability {
-        make_account<Token, Unhosted::T>(fresh_address, auth_key_prefix, Unhosted::create())
+    public fun create_root_vasp_account<Token>(
+        fresh_address: address,
+        auth_key_prefix: vector<u8>,
+        human_name: vector<u8>,
+        base_url: vector<u8>,
+        ca_cert: vector<u8>,
+    ) acquires AccountOperationsCapability {
+        let vasp_credential = VASP::create_root_vasp_credential(human_name, base_url, ca_cert);
+        let account_type = AccountType::create(fresh_address, vasp_credential);
+        make_account<Token, VASP::RootVASP>(fresh_address, auth_key_prefix, account_type)
+    }
+
+    // Create a child vasp account of the calling
+    public fun create_child_vasp_account<Token>(
+        fresh_address: address,
+        auth_key_prefix: vector<u8>
+    ) acquires AccountOperationsCapability {
+        let child_vasp_credential = VASP::create_child_vasp_credential();
+        let root_vasp_address = VASP::root_vasp_address(Transaction::sender());
+        let account_type = AccountType::create(root_vasp_address, child_vasp_credential);
+        make_account<Token, VASP::ChildVASP>(fresh_address, auth_key_prefix, account_type)
     }
 
     public fun create_account<Token>(fresh_address: address, auth_key_prefix: vector<u8>)
     acquires AccountOperationsCapability {
-        make_account<Token, Empty::T>(fresh_address, auth_key_prefix, Empty::create())
+        let account_type = AccountType::create(fresh_address, Empty::create());
+        make_account<Token, Empty::T>(fresh_address, auth_key_prefix, account_type);
     }
 
     fun make_account<Token, AT: copyable>(
         fresh_address: address,
         auth_key_prefix: vector<u8>,
-        account_metadata: AT
+        account_type: AccountType::T<AT>,
     ) acquires AccountOperationsCapability {
         let generator = Event::new_event_generator(
             fresh_address,
@@ -379,7 +398,7 @@ module LibraAccount {
         Transaction::assert(Vector::length(&authentication_key) == 32, 12);
 
         save_account<Token, AT>(
-            AccountType::create(fresh_address, account_metadata),
+            account_type,
             Balance<Token>{
                 coin: Libra::zero<Token>()
             },
