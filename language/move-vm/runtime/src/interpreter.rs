@@ -3,6 +3,7 @@
 
 use crate::{
     gas,
+    tracing::Tracer,
     loader::{Function, Loader, Resolver},
     native_functions::FunctionContext,
 };
@@ -56,7 +57,7 @@ macro_rules! debug_writeln {
 /// The `Interpreter` receives a reference to a data store used by certain opcodes
 /// to do operations on data on chain and a `TransactionMetadata` which is also used to resolve
 /// specific opcodes.
-pub(crate) struct Interpreter<'txn> {
+pub(crate) struct Interpreter<'txn, Trace: Tracer> {
     /// Operand stack, where Move `Value`s are stored for stack operations.
     operand_stack: Stack,
     /// The stack of active functions.
@@ -65,9 +66,10 @@ pub(crate) struct Interpreter<'txn> {
     /// GetTxnSenderAddress, ...)
     txn_data: &'txn TransactionMetadata,
     gas_schedule: &'txn CostTable,
+    phantom_date: PhantomData<Tracer>,
 }
 
-impl<'txn> Interpreter<'txn> {
+impl<'txn, Trace: Tracer> Interpreter<'txn, Trace> {
     /// Entrypoint into the interpreter. All external calls need to be routed through this
     /// function.
     pub(crate) fn entrypoint(
@@ -147,7 +149,7 @@ impl<'txn> Interpreter<'txn> {
         for (i, value) in args.into_iter().enumerate() {
             locals.store_loc(i, value)?;
         }
-        let mut current_frame = Frame::new(function, ty_args, locals);
+        let mut current_frame = Frame::<Trace>::new(function, ty_args, locals);
         loop {
             let resolver = current_frame.resolver(loader);
             let exit_code = current_frame //self
@@ -656,7 +658,7 @@ enum ExitCode {
     CallGeneric(FunctionInstantiationIndex),
 }
 
-impl Frame {
+impl<Trace: Tracer> Frame<Trace> {
     /// Create a new `Frame` given a `Function` and the function `Locals`.
     ///
     /// The locals must be loaded before calling this.
@@ -679,6 +681,7 @@ impl Frame {
         let code = self.function.code();
         loop {
             for instruction in &code[self.pc as usize..] {
+                Trace::trace(self.function.pretty_string(), self.pc, instruction);
                 self.pc += 1;
 
                 match instruction {

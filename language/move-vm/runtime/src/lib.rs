@@ -18,5 +18,6 @@ mod loader;
 mod move_vm;
 mod native_functions;
 mod runtime;
+mod tracing;
 
 pub use move_vm::*;
