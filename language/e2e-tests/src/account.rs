@@ -383,18 +383,24 @@ impl Default for Account {
 /// Struct that represents an account balance resource for tests.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Balance {
+    currency: Identifier,
     coin: u64,
 }
 
 impl Balance {
     /// Create a new balance with amount `balance`
-    pub fn new(coin: u64) -> Self {
-        Self { coin }
+    pub fn new(currency: Identifier, coin: u64) -> Self {
+        Self { currency, coin }
     }
 
     /// Retrieve the balance inside of this
     pub fn coin(&self) -> u64 {
         self.coin
+    }
+
+    /// Retrieve the balance inside of this
+    pub fn currency(&self) -> &IdentStr {
+        &self.currency
     }
 
     /// Returns the Move Value for the account balance
@@ -630,9 +636,7 @@ pub struct AccountData {
     sent_events: EventHandle,
     received_events: EventHandle,
     is_frozen: bool,
-    balance_currency_code: Identifier,
-
-    balance: Balance,
+    balances: BTreeMap<Identifier, Balance>,
     event_generator: EventHandleGenerator,
     account_type: AccountType,
 }
@@ -723,7 +727,7 @@ impl AccountData {
             account_type: AccountType::new(*account.address(), account_specifier),
             event_generator: EventHandleGenerator::new_with_event_count(*account.address(), 2),
             account,
-            balance: Balance::new(balance),
+            balance: Balance::new(balance_currency_code, balance),
             sequence_number,
             is_frozen,
             delegated_key_rotation_capability,
@@ -821,7 +825,6 @@ impl AccountData {
         let balance = self.balance.to_value();
         let assoc_cap = self.account_type.to_value();
         let event_generator = self.event_generator.to_value();
-        let balance_currency_code = self.balance_currency_code.as_bytes();
         let account = Value::struct_(Struct::pack(vec![
             // TODO: this needs to compute the auth key instead
             Value::vector_u8(AuthenticationKey::ed25519(&self.account.pubkey).to_vec()),
@@ -837,7 +840,6 @@ impl AccountData {
             ])),
             Value::u64(self.sequence_number),
             Value::bool(self.is_frozen),
-            Value::vector_u8(balance_currency_code.to_vec()),
         ]));
         (account, balance, assoc_cap, event_generator)
     }
