@@ -79,6 +79,7 @@ members = [
     "language/tools/genesis-viewer",
     "language/tools/move-coverage",
     "language/tools/test-generation",
+    "language/tools/transaction-fuzzer",
     "language/tools/utils",
     "language/tools/vm-genesis",
     "language/transaction-builder",
