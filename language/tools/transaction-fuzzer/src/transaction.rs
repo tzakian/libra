@@ -2,24 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    abstract_state::{AbstractMetadata, Constraint, Effect},
+    abstract_state::{AbstractMetadata, AbstractType, Constraint, Effect},
     chain_state::AbstractChainState,
-    resource,
 };
 use libra_types::account_address::AccountAddress;
 use move_core_types::{language_storage::TypeTag, transaction_argument::TransactionArgument};
 use rand::{self, Rng};
-use std::collections::BTreeMap;
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 use stdlib::transaction_scripts::StdlibScript;
 
-pub type InstantiableEffect = Box<fn(Vec<TransactionArgument>, Vec<TypeTag>) -> Effect>;
+pub type InstantiableEffects =
+    Box<fn(AccountAddress, Vec<TransactionArgument>, Vec<TypeTag>) -> Vec<Effect>>;
 
-macro_rules! ieff {
-    ($args:ident, $ty_args:ident => $eff:expr) => {
-        Box::new(move |$args: Vec<TransactionArgument>, $ty_args: Vec<TypeTag>| $eff)
-    };
-}
+pub type TyConstraint = Box<fn(AbstractType) -> Vec<Constraint>>;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct AbstractTransactionArgument {
@@ -40,10 +35,10 @@ pub enum TransactionArgumentType {
 #[derive(Clone, PartialEq, Eq)]
 pub struct AbstractTransaction {
     pub sender_preconditions: AbstractTransactionArgument,
-    pub ty_args: Vec<AbstractMetadata>,
+    pub ty_args: Vec<(AbstractMetadata, TyConstraint)>,
     pub args: Vec<AbstractTransactionArgument>,
     pub transaction: StdlibScript,
-    pub effects: Vec<InstantiableEffect>,
+    pub effects: InstantiableEffects,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -85,50 +80,6 @@ impl TransactionRegistry {
     }
 }
 
-pub fn addr(txn_arg: TransactionArgument) -> AccountAddress {
-    match txn_arg {
-        TransactionArgument::Address(addr) => addr,
-        _ => panic!("nope!"),
-    }
-}
-
-pub fn txns() -> TransactionRegistry {
-    let mut registry = TransactionRegistry::new();
-    let txns = vec![(
-        "create_account".to_string(),
-        AbstractTransaction {
-            sender_preconditions: AbstractTransactionArgument {
-                //preconditions: vec![Constraint::HasResource(resource!(0x0::LibraAccount::T))],
-                preconditions: vec![Constraint::AccountDNE],
-                argument_type: TransactionArgumentType::Address,
-            },
-            ty_args: vec![AbstractMetadata::IsCurrency],
-            args: vec![
-                AbstractTransactionArgument {
-                    preconditions: vec![Constraint::AccountDNE],
-                    argument_type: TransactionArgumentType::Address,
-                },
-                AbstractTransactionArgument {
-                    preconditions: vec![Constraint::RangeConstraint {
-                        lower: 32,
-                        upper: 33,
-                    }],
-                    argument_type: TransactionArgumentType::U8Vector,
-                },
-            ],
-            transaction: StdlibScript::CreateAccount,
-            effects: vec![
-                ieff!(x, _y => Effect::PublishesResource(addr(x[0].clone()), resource!(0x0::LibraAccount::T))),
-                ieff!(x, _y => Effect::PublishesResource(addr(x[0].clone()), resource!(0x0::VASP::RootVASP))),
-                // TODO
-                //ieff!(args, ty_args => Effect::PublishesResource(args[0], ty!(0x0::LibraAccount::Balance<ty_args[0]>)))
-            ],
-        },
-    )];
-    registry.add_transactions(txns);
-    registry
-}
-
 impl TransactionArgumentType {
     pub fn inhabit(&self) -> TransactionArgument {
         use TransactionArgument as TA;
@@ -145,6 +96,11 @@ impl TransactionArgumentType {
 }
 
 impl AbstractTransactionArgument {
+    pub fn add_constraints(mut self, mut constraints: Vec<Constraint>) -> Self {
+        self.preconditions.append(&mut constraints);
+        self
+    }
+
     pub fn inhabit(&self, chain_state: &AbstractChainState) -> Option<TransactionArgument> {
         if self.preconditions.is_empty() {
             Some(self.argument_type.inhabit())
@@ -209,7 +165,7 @@ impl AbstractTransactionArgument {
                         return None;
                     }
                     let end = rand::thread_rng().gen_range(lower_bound, upper_bound);
-                    let vec: Vec<_> = (0..end+1).map(|_| rand::random::<u8>()).collect();
+                    let vec: Vec<_> = (0..end + 1).map(|_| rand::random::<u8>()).collect();
                     Some(TransactionArgument::U8Vector(vec))
                 }
                 TransactionArgumentType::Address => {
@@ -249,6 +205,21 @@ impl AbstractTransactionArgument {
 }
 
 impl AbstractTransaction {
+    fn get_tys_and_constraints(
+        tys: &[(AbstractMetadata, TyConstraint)],
+        chain_state: &AbstractChainState,
+    ) -> (Vec<TypeTag>, Vec<Constraint>) {
+        let mut ty_tags = Vec::new();
+        let mut constraints = Vec::new();
+        for (meta, ty_constraint) in tys.iter() {
+            let typ = chain_state.type_registry.get_ty_from_meta(meta).unwrap();
+            let mut constraint = ty_constraint(typ.clone());
+            ty_tags.push(typ.type_.clone());
+            constraints.append(&mut constraint);
+        }
+        (ty_tags, constraints)
+    }
+
     /// Try to instantiate the transaction w.r.t. the given chain state
     pub fn instantiate(&self, chain_state: &AbstractChainState) -> Option<InstantiatedTransaction> {
         let args: Vec<_> = self
@@ -257,29 +228,19 @@ impl AbstractTransaction {
             .map(|txn_arg| txn_arg.inhabit(chain_state))
             .collect::<Option<Vec<_>>>()?;
 
-        let sender = match self.sender_preconditions.inhabit(chain_state)? {
+        let (ty_args, constraints) = Self::get_tys_and_constraints(&self.ty_args, chain_state);
+
+        let sender = match self
+            .sender_preconditions
+            .clone()
+            .add_constraints(constraints)
+            .inhabit(chain_state)?
+        {
             TransactionArgument::Address(addr) => addr,
             _ => return None,
         };
 
-        let ty_args: Vec<TypeTag> = self
-            .ty_args
-            .iter()
-            .map(|meta| {
-                chain_state
-                    .type_registry
-                    .get_ty_from_meta(meta)
-                    .unwrap()
-                    .type_
-                    .clone()
-            })
-            .collect();
-
-        let effects = self
-            .effects
-            .iter()
-            .map(|effect_fn| effect_fn(args.clone(), ty_args.clone()))
-            .collect();
+        let effects = (self.effects)(sender, args.clone(), ty_args.clone());
 
         Some(InstantiatedTransaction {
             sender,
@@ -288,5 +249,12 @@ impl AbstractTransaction {
             transaction: self.transaction,
             effects,
         })
+    }
+}
+
+pub fn addr(txn_arg: TransactionArgument) -> AccountAddress {
+    match txn_arg {
+        TransactionArgument::Address(addr) => addr,
+        _ => panic!("Invalid transactioon argument"),
     }
 }

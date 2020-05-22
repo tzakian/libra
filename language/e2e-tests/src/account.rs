@@ -98,6 +98,15 @@ impl Account {
         }
     }
 
+    pub fn new_with_address(addr: AccountAddress) -> Self {
+        let (privkey, pubkey) = KeyGen::from_os_rng().generate_keypair();
+        Account {
+            addr,
+            privkey,
+            pubkey,
+        }
+    }
+
     /// Creates a new account representing the association in memory.
     ///
     /// The address will be [`association_address`][account_config::association_address], and

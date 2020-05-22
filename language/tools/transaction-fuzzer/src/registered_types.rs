@@ -29,26 +29,17 @@ macro_rules! ty {
     }}
 }
 
-#[macro_export]
-macro_rules! resource {
-    ($addr:literal::$mod_name:ident::$struct_name:ident) => {{
-        use crate::{
-            abstract_state::{AbstractResource, AbstractType},
-            ty,
-        };
-        AbstractResource::new(AbstractType::new(ty!($addr::$mod_name::$struct_name)))
-    }};
-}
-
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq, Ord)]
 pub struct TypeRegistry {
     pub meta_to_type: BTreeMap<AbstractMetadata, Vec<AbstractType>>,
+    pub abstract_types: BTreeMap<TypeTag, AbstractType>,
 }
 
 impl TypeRegistry {
     pub fn new() -> Self {
         Self {
             meta_to_type: BTreeMap::new(),
+            abstract_types: BTreeMap::new(),
         }
     }
 
@@ -60,6 +51,11 @@ impl TypeRegistry {
                 .or_insert_with(Vec::new);
             entry.push(ty.clone());
         }
+        self.abstract_types.insert(ty.type_.clone(), ty);
+    }
+
+    pub fn abstract_(&self, typ: &TypeTag) -> AbstractType {
+        self.abstract_types.get(typ).unwrap().clone()
     }
 
     pub fn get_ty_from_meta(&self, meta: &AbstractMetadata) -> Option<&AbstractType> {

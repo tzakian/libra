@@ -32,6 +32,7 @@ impl AbstractChainState {
                     .ok_or_else(|| Error::msg("Unable to find account when removing resource"))?;
                 account.resources.remove(&resource);
             }
+            Effect::CreatesAccount(_account) => unimplemented!(),
             Effect::PublishesResource(address, resource) => {
                 let account = self
                     .accounts
