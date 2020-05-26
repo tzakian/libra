@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use language_e2e_tests::account::Account;
+use libra_crypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
 use libra_types::account_address::AccountAddress;
 use move_core_types::language_storage::TypeTag;
 use std::{cmp::Ordering, collections::BTreeSet};
@@ -31,6 +32,7 @@ pub struct AbstractResource {
 pub struct AbstractAccount {
     pub account: Account,
     pub resources: BTreeSet<AbstractResource>,
+    pub sequence_number: u64,
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq, Ord)]
@@ -41,12 +43,12 @@ pub enum Constraint {
     AccountDNE,
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
     PublishesResource(AccountAddress, AbstractResource),
     RemovesResource(AccountAddress, AbstractResource),
-    // TODO: Replace with Account instead of AbstractAccount
-    CreatesAccount(AbstractAccount),
+    RotatesKey(AccountAddress, (Ed25519PrivateKey, Ed25519PublicKey)),
+    CreatesAccount(Account),
 }
 
 impl AbstractType {
@@ -86,11 +88,24 @@ impl AbstractResource {
 }
 
 impl AbstractAccount {
-    pub fn new_from_addr(addr: AccountAddress) -> Self {
+    pub fn new() -> Self {
         Self {
-            account: Account::new_with_address(addr),
+            account: Account::new(),
             resources: BTreeSet::new(),
+            sequence_number: 0,
         }
+    }
+
+    pub fn new_from_account(account: Account) -> Self {
+        Self {
+            account,
+            resources: BTreeSet::new(),
+            sequence_number: 0,
+        }
+    }
+
+    pub fn add_resource(&mut self, resource: AbstractResource) {
+        assert!(self.resources.insert(resource), "Resource already exists");
     }
 }
 
@@ -131,21 +146,3 @@ impl Ord for AbstractAccount {
         self.resources.cmp(&other.resources)
     }
 }
-
-//impl PartialOrd for Effect {
-//    fn partial_cmp(&self, other: &Effect) -> Option<Ordering> {
-//        Some(self.cmp(other))
-//    }
-//}
-//
-//impl Ord for Effect {
-//    fn cmp(&self, other: &Effect) -> Ordering {
-//        match (self, other) {
-//            (Effect::CreatesAccount(a), Effect::CreatesAccount(b)) => {
-//                a.address().cmp(b.address())
-//            }
-//            (_, Effect::CreatesAccount(_)) => Ordering::Less,
-//            (Effect::CreatesAccount(_), _) => Ordering::Greater,
-//        }
-//    }
-//}

@@ -5,14 +5,17 @@ use crate::{
     abstract_state::{AbstractMetadata, AbstractType, Constraint, Effect},
     chain_state::AbstractChainState,
 };
+use anyhow::Result;
+use language_e2e_tests::account::Account;
+use libra_crypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
 use libra_types::account_address::AccountAddress;
 use move_core_types::{language_storage::TypeTag, transaction_argument::TransactionArgument};
 use rand::{self, Rng};
-use std::{collections::BTreeMap, fmt};
+use std::{collections::HashMap, fmt};
 use stdlib::transaction_scripts::StdlibScript;
 
 pub type InstantiableEffects =
-    Box<fn(AccountAddress, Vec<TransactionArgument>, Vec<TypeTag>) -> Vec<Effect>>;
+    Box<fn(AccountAddress, Vec<EffectInstantiationArg>, Vec<TypeTag>) -> Vec<Effect>>;
 
 pub type TyConstraint = Box<fn(AbstractType) -> Vec<Constraint>>;
 
@@ -30,6 +33,19 @@ pub enum TransactionArgumentType {
     Address,
     U8Vector,
     Bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectInstantiationArg {
+    TxnArg(TransactionArgument),
+    Account(Account),
+    NewKey(Ed25519PrivateKey, Ed25519PublicKey),
+}
+
+pub trait Transaction {
+    fn name(&self) -> String;
+    fn abstract_(&self) -> AbstractTransaction;
+    fn instantiate(&self, chain_state: &mut AbstractChainState) -> Option<InstantiatedTransaction>;
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -61,19 +77,57 @@ impl fmt::Debug for InstantiatedTransaction {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+impl EffectInstantiationArg {
+    pub fn project(args: Vec<TransactionArgument>) -> Vec<EffectInstantiationArg> {
+        args.into_iter()
+            .map(EffectInstantiationArg::TxnArg)
+            .collect()
+    }
+
+    pub fn txn(&self) -> TransactionArgument {
+        match self {
+            EffectInstantiationArg::TxnArg(arg) => arg.clone(),
+            _ => panic!("Invalid effect argument encountered"),
+        }
+    }
+    pub fn account(&self) -> Account {
+        match self {
+            EffectInstantiationArg::Account(account) => account.clone(),
+            _ => panic!("Invalid effect argument encountered"),
+        }
+    }
+    pub fn keys(&self) -> (Ed25519PrivateKey, Ed25519PublicKey) {
+        match self {
+            EffectInstantiationArg::NewKey(priv_key, pub_key) => {
+                (priv_key.clone(), pub_key.clone())
+            }
+            _ => panic!("Invalid effect argument encountered"),
+        }
+    }
+}
+
+impl InstantiatedTransaction {
+    pub fn apply_transaction(&self, chain_state: &mut AbstractChainState) -> Result<()> {
+        for effect in &self.effects {
+            //println!("Applying effect: {:#?}", effect);
+            chain_state.apply_effect(effect.clone())?;
+        }
+        Ok(())
+    }
+}
+
 pub struct TransactionRegistry {
-    pub transactions: BTreeMap<String, AbstractTransaction>,
+    pub transactions: HashMap<String, Box<dyn Transaction>>,
 }
 
 impl TransactionRegistry {
     pub fn new() -> Self {
         Self {
-            transactions: BTreeMap::new(),
+            transactions: HashMap::new(),
         }
     }
 
-    pub fn add_transactions(&mut self, txns: Vec<(String, AbstractTransaction)>) {
+    pub fn add_transactions(&mut self, txns: Vec<(String, Box<dyn Transaction>)>) {
         for (name, txn) in txns {
             self.transactions.insert(name, txn);
         }
@@ -86,7 +140,8 @@ impl TransactionArgumentType {
         use TransactionArgumentType as TAT;
         match self {
             TAT::U8 => TA::U8(rand::random::<u8>()),
-            TAT::U64 => TA::U64(rand::random::<u64>()),
+            //TAT::U64 => TA::U64(rand::random::<u64>()),
+            TAT::U64 => TA::U64(0),
             TAT::U128 => TA::U128(rand::random::<u128>()),
             TAT::U8Vector => TA::U8Vector((0..32).map(|_| rand::random::<u8>()).collect()),
             TAT::Bool => TA::Bool(rand::random::<bool>()),
@@ -205,7 +260,7 @@ impl AbstractTransactionArgument {
 }
 
 impl AbstractTransaction {
-    fn get_tys_and_constraints(
+    pub fn get_tys_and_constraints(
         tys: &[(AbstractMetadata, TyConstraint)],
         chain_state: &AbstractChainState,
     ) -> (Vec<TypeTag>, Vec<Constraint>) {
@@ -219,42 +274,18 @@ impl AbstractTransaction {
         }
         (ty_tags, constraints)
     }
-
-    /// Try to instantiate the transaction w.r.t. the given chain state
-    pub fn instantiate(&self, chain_state: &AbstractChainState) -> Option<InstantiatedTransaction> {
-        let args: Vec<_> = self
-            .args
-            .iter()
-            .map(|txn_arg| txn_arg.inhabit(chain_state))
-            .collect::<Option<Vec<_>>>()?;
-
-        let (ty_args, constraints) = Self::get_tys_and_constraints(&self.ty_args, chain_state);
-
-        let sender = match self
-            .sender_preconditions
-            .clone()
-            .add_constraints(constraints)
-            .inhabit(chain_state)?
-        {
-            TransactionArgument::Address(addr) => addr,
-            _ => return None,
-        };
-
-        let effects = (self.effects)(sender, args.clone(), ty_args.clone());
-
-        Some(InstantiatedTransaction {
-            sender,
-            ty_args,
-            args,
-            transaction: self.transaction,
-            effects,
-        })
-    }
 }
 
 pub fn addr(txn_arg: TransactionArgument) -> AccountAddress {
     match txn_arg {
         TransactionArgument::Address(addr) => addr,
+        _ => panic!("Invalid transactioon argument"),
+    }
+}
+
+pub fn bool(txn_arg: TransactionArgument) -> bool {
+    match txn_arg {
+        TransactionArgument::Bool(b) => b,
         _ => panic!("Invalid transactioon argument"),
     }
 }
