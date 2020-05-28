@@ -1337,8 +1337,10 @@
     currency_code: vector&lt;u8&gt;,
 ): (<a href="#0x0_Libra_MintCapability">MintCapability</a>&lt;CoinType&gt;, <a href="#0x0_Libra_BurnCapability">BurnCapability</a>&lt;CoinType&gt;)
 <b>acquires</b> <a href="#0x0_Libra_CurrencyRegistrationCapability">CurrencyRegistrationCapability</a> {
-    // And only callable by the designated currency address.
+    // Caller has permission <b>to</b> register this currency
     Transaction::assert(<a href="association.md#0x0_Association_has_privilege">Association::has_privilege</a>&lt;<a href="#0x0_Libra_AddCurrency">AddCurrency</a>&gt;(Transaction::sender()), 8);
+    // And only callable by the designated currency address.
+    Transaction::assert(<a href="signer.md#0x0_Signer_address_of">Signer::address_of</a>(account) == <a href="#0x0_Libra_currency_addr">currency_addr</a>(), 8);
 
     move_to(account, <a href="#0x0_Libra_CurrencyInfo">CurrencyInfo</a>&lt;CoinType&gt; {
         total_value: 0,

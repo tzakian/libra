@@ -445,8 +445,10 @@ module Libra {
         currency_code: vector<u8>,
     ): (MintCapability<CoinType>, BurnCapability<CoinType>)
     acquires CurrencyRegistrationCapability {
-        // And only callable by the designated currency address.
+        // Caller has permission to register this currency
         Transaction::assert(Association::has_privilege<AddCurrency>(Transaction::sender()), 8);
+        // And only callable by the designated currency address.
+        Transaction::assert(Signer::address_of(account) == currency_addr(), 8);
 
         move_to(account, CurrencyInfo<CoinType> {
             total_value: 0,
