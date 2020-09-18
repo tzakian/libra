@@ -1054,7 +1054,6 @@ module LibraAccount {
         balance_for(borrow_global<Balance<Token>>(addr))
     }
     spec fun balance {
-        pragma verify;
         aborts_if !exists<Balance<Token>>(addr) with Errors::NOT_PUBLISHED;
     }
 
@@ -1162,7 +1161,6 @@ module LibraAccount {
         )
     }
     spec fun module_prologue {
-        pragma verify;
         let transaction_sender = Signer::spec_address_of(sender);
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
         include AbortsIfModulePrologue<Token> {
@@ -1182,14 +1180,7 @@ module LibraAccount {
         max_transaction_fee: u128;
         txn_expiration_time_seconds: u64;
         let transaction_sender = Signer::spec_address_of(sender);
-        include AbortsIfPrologueCommon<Token> {
-            transaction_sender,
-            txn_sequence_number,
-            txn_public_key,
-            chain_id,
-            max_transaction_fee,
-            txn_expiration_time_seconds,
-        };
+        include AbortsIfPrologueCommon<Token> {transaction_sender};
         /// Aborts only in genesis. Does not need to be handled.
         include LibraTransactionPublishingOption::AbortsIfNoTransactionPublishingOption;
         /// Covered: L75 (Match 9)
@@ -1223,17 +1214,10 @@ module LibraAccount {
         )
     }
     spec fun script_prologue {
-        pragma verify;
-        let transaction_sender = Signer::spec_address_of(sender);
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
-        include AbortsIfScriptPrologue<Token> {
-            sender,
-            txn_sequence_number,
-            txn_public_key,
-            chain_id,
+        include AbortsIfScriptPrologue<Token>{
             max_transaction_fee,
             txn_expiration_time_seconds: txn_expiration_time,
-            script_hash,
         };
     }
     spec schema AbortsIfScriptPrologue<Token> {
@@ -1245,14 +1229,7 @@ module LibraAccount {
         txn_expiration_time_seconds: u64;
         script_hash: vector<u8>;
         let transaction_sender = Signer::spec_address_of(sender);
-        include AbortsIfPrologueCommon<Token> {
-            transaction_sender,
-            txn_sequence_number,
-            txn_public_key,
-            chain_id,
-            max_transaction_fee,
-            txn_expiration_time_seconds,
-        };
+        include AbortsIfPrologueCommon<Token> {transaction_sender};
         /// Aborts only in Genesis. Does not need to be handled.
         include LibraTransactionPublishingOption::AbortsIfNoTransactionPublishingOption;
         /// Covered: L74 (Match 8)
@@ -1286,10 +1263,25 @@ module LibraAccount {
     }
 
     spec fun writeset_prologue {
-        pragma aborts_if_is_partial = true;
+        include AbortsIfWritesetPrologue {txn_expiration_time_seconds: txn_expiration_time};
+    }
 
+    spec schema AbortsIfWritesetPrologue {
+        sender: signer;
+        txn_sequence_number: u64;
+        txn_public_key: vector<u8>;
+        txn_expiration_time_seconds: u64;
+        chain_id: u8;
+        let transaction_sender = Signer::spec_address_of(sender);
+        /// Covered: L146 (Match 0)
+        aborts_if transaction_sender != CoreAddresses::LIBRA_ROOT_ADDRESS() with Errors::INVALID_ARGUMENT;
         /// Must abort if the signer does not have the LibraRoot role [B18].
-        aborts_if !Roles::spec_has_libra_root_role_addr(Signer::address_of(sender));
+        /// Covered: L146 (Match 0)
+        aborts_if !Roles::spec_has_libra_root_role_addr(transaction_sender) with Errors::INVALID_ARGUMENT;
+        include AbortsIfPrologueCommon<LBR::LBR>{
+            transaction_sender,
+            max_transaction_fee: 0,
+        };
     }
 
     /// The common prologue is invoked at the beginning of every transaction
@@ -1372,16 +1364,11 @@ module LibraAccount {
         );
     }
     spec fun prologue_common {
-        pragma verify;
         let transaction_sender = Signer::spec_address_of(sender);
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
         include AbortsIfPrologueCommon<Token> {
             transaction_sender,
-            txn_sequence_number,
-            txn_public_key,
-            chain_id,
             max_transaction_fee,
-            txn_expiration_time_seconds,
         };
     }
     spec schema AbortsIfPrologueCommon<Token> {
@@ -1391,27 +1378,27 @@ module LibraAccount {
         chain_id: u8;
         max_transaction_fee: u128;
         txn_expiration_time_seconds: u64;
-        // Only happens if this is called in Genesis. Doesn't need to be handled.
+        /// Only happens if this is called in Genesis. Doesn't need to be handled.
         include LibraTimestamp::AbortsIfNotOperating;
-        // [PCA1] Covered: L73 (Match 7)
+        /// [PCA1] Covered: L73 (Match 7)
         aborts_if chain_id != ChainId::spec_get_chain_id() with Errors::INVALID_ARGUMENT;
-        // [PCA2] Covered: L65 (Match 4)
+        /// [PCA2] Covered: L65 (Match 4)
         aborts_if !exists_at(transaction_sender) with Errors::INVALID_ARGUMENT;
-        // [PCA3] Covered: L57 (Match 0)
+        /// [PCA3] Covered: L57 (Match 0)
         aborts_if AccountFreezing::spec_account_is_frozen(transaction_sender) with Errors::INVALID_STATE;
-        // [PCA4] Covered: L59 (Match 1)
+        /// [PCA4] Covered: L59 (Match 1)
         aborts_if Hash::sha3_256(txn_public_key) != global<LibraAccount>(transaction_sender).authentication_key with Errors::INVALID_ARGUMENT;
-        // [PCA5] Covered: L69 (Match 5)
+        /// [PCA5] Covered: L69 (Match 5)
         aborts_if max_transaction_fee > MAX_U64 with Errors::INVALID_ARGUMENT;
-        // [PCA6] Covered: L69 (Match 5)
+        /// [PCA6] Covered: L69 (Match 5)
         aborts_if max_transaction_fee > 0 && !exists<Balance<Token>>(transaction_sender) with Errors::INVALID_ARGUMENT;
-        // [PCA7] Covered: L69 (Match 5)
+        /// [PCA7] Covered: L69 (Match 5)
         aborts_if max_transaction_fee > 0 && spec_get_balance_value<Token>(transaction_sender) < max_transaction_fee with Errors::INVALID_ARGUMENT;
-        // [PCA8] Covered: L61 (Match 2)
+        /// [PCA8] Covered: L61 (Match 2)
         aborts_if txn_sequence_number < global<LibraAccount>(transaction_sender).sequence_number with Errors::INVALID_ARGUMENT;
-        // [PCA9] Covered: L63 (match 3)
+        /// [PCA9] Covered: L63 (match 3)
         aborts_if txn_sequence_number > global<LibraAccount>(transaction_sender).sequence_number with Errors::INVALID_ARGUMENT;
-        // [PCA10] Covered: L72 (Match 6)
+        /// [PCA10] Covered: L72 (Match 6)
         aborts_if LibraTimestamp::spec_now_seconds() >= txn_expiration_time_seconds with Errors::INVALID_ARGUMENT;
     }
 
@@ -1459,7 +1446,10 @@ module LibraAccount {
             sender_account.sequence_number == txn_sequence_number,
             Errors::invalid_argument(ESEQUENCE_NUMBER)
         );
-        // > TODO(tzakian): How to tie this to the sequence number?
+
+        // The transaction sequence number is passed in to prevent any
+        // possibility of the account's sequence number increasing by more than
+        // one for any transaction.
         sender_account.sequence_number = txn_sequence_number + 1;
 
         if (transaction_fee_amount > 0) {
@@ -1476,10 +1466,6 @@ module LibraAccount {
             // NB: `withdraw_from_balance` is not used as limits do not apply to this transaction fee
             TransactionFee::pay_fee(Libra::withdraw(coin, transaction_fee_amount))
         }
-    }
-
-    spec fun epilogue {
-        pragma verify = true;
     }
 
     /// Epilogue for WriteSet trasnaction

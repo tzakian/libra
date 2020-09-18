@@ -143,7 +143,13 @@ pub fn convert_write_set_prologue_error(status: VMStatus) -> VMStatus {
         }
 
         VMStatus::MoveAbort(location, code) => match error_split(code) {
-            (INVALID_ARGUMENT, EINVALID_WRITESET_SENDER)
+            // Reachable according to the Move code, but should never be hit
+            (INVALID_STATE, EACCOUNT_FROZEN)
+            | (INVALID_ARGUMENT, EACCOUNT_DOES_NOT_EXIST)
+            | (INVALID_ARGUMENT, ECANT_PAY_GAS_DEPOSIT)
+
+            // Reachable, and can be hit
+            | (INVALID_ARGUMENT, EINVALID_WRITESET_SENDER)
             | (INVALID_ARGUMENT, ESEQUENCE_NUMBER_TOO_OLD)
             | (INVALID_ARGUMENT, ESEQUENCE_NUMBER_TOO_NEW)
             | (INVALID_ARGUMENT, EBAD_ACCOUNT_AUTHENTICATION_KEY)
