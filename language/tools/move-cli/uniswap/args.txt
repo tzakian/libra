@@ -1,0 +1,5 @@
+publish src/modules/Uniswap.move --mode diem
+run src/scripts/token_tests.move --signers 0x2
+run src/scripts/poolmap_tests.move --signers 0x2
+run src/scripts/swap_init_tests.move --signers 0x3
+run src/scripts/swap_tests.move

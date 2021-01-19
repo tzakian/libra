@@ -1,0 +1,8 @@
+Command `run src/scripts/sliding.move --signers 0x2 --mode diem`:
+Execution aborted with code 519 in module 00000000000000000000000000000001::SlidingNonce. Abort code details:
+Reason:
+  Name: ENONCE_TOO_NEW
+  Description: The nonce is too large - this protects against nonce exhaustion
+Category:
+  Name: INVALID_ARGUMENT
+  Description: An argument provided to an operation is invalid. Example: a signing key has the wrong format.

@@ -1,0 +1,36 @@
+Command `publish src/modules/Uniswap.move --mode diem`:
+Command `run src/scripts/token_tests.move --signers 0x2`:
+[debug] (&) [65]
+[debug] (&) [66]
+[debug] (&) [67]
+[debug] (&) [68]
+[debug] (&) [69]
+[debug] (&) [70]
+[debug] (&) [71]
+Command `run src/scripts/poolmap_tests.move --signers 0x2`:
+[debug] 00000000000000000000000000000003
+[debug] 00000000000000000000000000000003
+[debug] 00000000000000000000000000000003
+[debug] 00000000000000000000000000000004
+[debug] 00000000000000000000000000000004
+Command `run src/scripts/swap_init_tests.move --signers 0x3`:
+[debug] (&) { 4800 }
+[debug] (&) { 12884901888 }
+[debug] (&) { 1431655765 }
+[debug] 30
+[debug] 3
+Command `run src/scripts/swap_tests.move`:
+[debug] 300
+[debug] 33
+[debug] (&) { 1100 }
+[debug] (&) { 700 }
+[debug] 157
+[debug] 63
+[debug] (&) { 1200 }
+[debug] (&) { 543 }
+[debug] 116
+[debug] 85
+[debug] (&) { 1300 }
+[debug] (&) { 426 }
+[debug] 92
+[debug] 108

@@ -1,0 +1,1 @@
+run src/scripts/sliding.move --signers 0x2 --mode diem

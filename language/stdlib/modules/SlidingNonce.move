@@ -57,10 +57,12 @@ module SlidingNonce {
         };
         assert(exists<SlidingNonce>(Signer::address_of(account)), Errors::not_published(ESLIDING_NONCE));
         let t = borrow_global_mut<SlidingNonce>(Signer::address_of(account));
+        // If the recorded minimum nonce is greater than the sequence nonce provided this will fail.
         if (t.min_nonce > seq_nonce) {
             return ENONCE_TOO_OLD
         };
         let jump_limit = 10000; // Don't allow giant leaps in nonce to protect against nonce exhaustion
+        // if the sequence nonce provided is too far in the future
         if (t.min_nonce + jump_limit <= seq_nonce) {
             return ENONCE_TOO_NEW
         };
