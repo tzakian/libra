@@ -1,0 +1,8 @@
+ [package]
+    name = "qux"
+    version = "0.1.0"
+    authors = ["abc", "xyz"]
+    edition = "woah"
+
+    [dependencies]
+    woops = { local = "../woops", subst = { a = "ABC" } }

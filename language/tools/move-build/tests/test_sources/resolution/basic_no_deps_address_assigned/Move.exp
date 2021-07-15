@@ -1,0 +1,81 @@
+ResolutionGraph {
+    root_package: SourceManifest {
+        package: PackageInfo {
+            name: Identifier(
+                "test",
+            ),
+            version: (
+                0,
+                0,
+                0,
+            ),
+            authors: [],
+            license: None,
+        },
+        addresses: Some(
+            {
+                Identifier(
+                    "A",
+                ): Some(
+                    00000000000000000000000000000000,
+                ),
+            },
+        ),
+        dev_address_assignments: None,
+        build: None,
+        dependencies: {},
+        dev_dependencies: {},
+    },
+    graph: Graph {
+        Ty: "Directed",
+        node_count: 1,
+        edge_count: 0,
+        node weights: {
+            0: Identifier(
+                "test",
+            ),
+        },
+        edge weights: {},
+    },
+    memo_table: {
+        Identifier(
+            "test",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(0),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "test",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): Some(
+                            00000000000000000000000000000000,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build",
+            renaming: {},
+        },
+    },
+    resolution_table: {
+        Identifier(
+            "A",
+        ): 00000000000000000000000000000000,
+    },
+}

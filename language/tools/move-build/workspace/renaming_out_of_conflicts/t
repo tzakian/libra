@@ -1,0 +1,556 @@
+MANIFEST: SourceManifest {
+    package: PackageInfo {
+        name: Identifier(
+            "Root",
+        ),
+        version: (
+            0,
+            0,
+            0,
+        ),
+        authors: [],
+        license: None,
+    },
+    addresses: Some(
+        {
+            Identifier(
+                "A",
+            ): Some(
+                00000000000000000000000000000001,
+            ),
+        },
+    ),
+    dev_address_assignments: None,
+    build: None,
+    dependencies: {
+        Identifier(
+            "A",
+        ): Dependency {
+            local: "./A",
+            subst: Some(
+                {
+                    Identifier(
+                        "AA",
+                    ): RenameFrom(
+                        Identifier(
+                            "A",
+                        ),
+                    ),
+                },
+            ),
+            version: None,
+            digest: None,
+        },
+        Identifier(
+            "B",
+        ): Dependency {
+            local: "./B",
+            subst: Some(
+                {
+                    Identifier(
+                        "BA",
+                    ): RenameFrom(
+                        Identifier(
+                            "A",
+                        ),
+                    ),
+                },
+            ),
+            version: None,
+            digest: None,
+        },
+    },
+    dev_dependencies: {},
+}
+RESOLUTION_GRAPH: ResolutionGraph {
+    root_package: SourceManifest {
+        package: PackageInfo {
+            name: Identifier(
+                "Root",
+            ),
+            version: (
+                0,
+                0,
+                0,
+            ),
+            authors: [],
+            license: None,
+        },
+        addresses: Some(
+            {
+                Identifier(
+                    "A",
+                ): Some(
+                    00000000000000000000000000000001,
+                ),
+            },
+        ),
+        dev_address_assignments: None,
+        build: None,
+        dependencies: {
+            Identifier(
+                "A",
+            ): Dependency {
+                local: "./A",
+                subst: Some(
+                    {
+                        Identifier(
+                            "AA",
+                        ): RenameFrom(
+                            Identifier(
+                                "A",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+            Identifier(
+                "B",
+            ): Dependency {
+                local: "./B",
+                subst: Some(
+                    {
+                        Identifier(
+                            "BA",
+                        ): RenameFrom(
+                            Identifier(
+                                "A",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+        },
+        dev_dependencies: {},
+    },
+    graph: Graph {
+        Ty: "Directed",
+        node_count: 3,
+        edge_count: 2,
+        edges: (0, 1), (0, 2),
+        node weights: {
+            0: Identifier(
+                "Root",
+            ),
+            1: Identifier(
+                "A",
+            ),
+            2: Identifier(
+                "B",
+            ),
+        },
+        edge weights: {
+            0: Identifier(
+                "A",
+            ),
+            1: Identifier(
+                "B",
+            ),
+        },
+    },
+    memo_table: {
+        Identifier(
+            "A",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(1),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "A",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): None,
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts/A",
+            renaming: {
+                Identifier(
+                    "A",
+                ): Identifier(
+                    "AA",
+                ),
+            },
+        },
+        Identifier(
+            "B",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(2),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "B",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): None,
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts/B",
+            renaming: {
+                Identifier(
+                    "A",
+                ): Identifier(
+                    "BA",
+                ),
+            },
+        },
+        Identifier(
+            "Root",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(0),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "Root",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): Some(
+                            00000000000000000000000000000001,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {
+                    Identifier(
+                        "A",
+                    ): Dependency {
+                        local: "./A",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "AA",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "A",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                    Identifier(
+                        "B",
+                    ): Dependency {
+                        local: "./B",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "BA",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "A",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                },
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts",
+            renaming: {},
+        },
+    },
+    resolution_table: {
+        Identifier(
+            "A",
+        ): Some(
+            00000000000000000000000000000001,
+        ),
+    },
+}
+RESOLVED: ResolutionGraph {
+    root_package: SourceManifest {
+        package: PackageInfo {
+            name: Identifier(
+                "Root",
+            ),
+            version: (
+                0,
+                0,
+                0,
+            ),
+            authors: [],
+            license: None,
+        },
+        addresses: Some(
+            {
+                Identifier(
+                    "A",
+                ): Some(
+                    00000000000000000000000000000001,
+                ),
+            },
+        ),
+        dev_address_assignments: None,
+        build: None,
+        dependencies: {
+            Identifier(
+                "A",
+            ): Dependency {
+                local: "./A",
+                subst: Some(
+                    {
+                        Identifier(
+                            "AA",
+                        ): RenameFrom(
+                            Identifier(
+                                "A",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+            Identifier(
+                "B",
+            ): Dependency {
+                local: "./B",
+                subst: Some(
+                    {
+                        Identifier(
+                            "BA",
+                        ): RenameFrom(
+                            Identifier(
+                                "A",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+        },
+        dev_dependencies: {},
+    },
+    graph: Graph {
+        Ty: "Directed",
+        node_count: 3,
+        edge_count: 2,
+        edges: (0, 1), (0, 2),
+        node weights: {
+            0: Identifier(
+                "Root",
+            ),
+            1: Identifier(
+                "A",
+            ),
+            2: Identifier(
+                "B",
+            ),
+        },
+        edge weights: {
+            0: Identifier(
+                "A",
+            ),
+            1: Identifier(
+                "B",
+            ),
+        },
+    },
+    memo_table: {
+        Identifier(
+            "A",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(1),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "A",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): None,
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts/A",
+            renaming: {
+                Identifier(
+                    "A",
+                ): Identifier(
+                    "AA",
+                ),
+            },
+        },
+        Identifier(
+            "B",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(2),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "B",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): None,
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts/B",
+            renaming: {
+                Identifier(
+                    "A",
+                ): Identifier(
+                    "BA",
+                ),
+            },
+        },
+        Identifier(
+            "Root",
+        ): ResolvedPackage {
+            resolution_graph_index: NodeIndex(0),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "Root",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): Some(
+                            00000000000000000000000000000001,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {
+                    Identifier(
+                        "A",
+                    ): Dependency {
+                        local: "./A",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "AA",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "A",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                    Identifier(
+                        "B",
+                    ): Dependency {
+                        local: "./B",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "BA",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "A",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                },
+                dev_dependencies: {},
+            },
+            package_path: "/home/tzakian/libra/language/tools/move-build/workspace/renaming_out_of_conflicts",
+            renaming: {},
+        },
+    },
+    resolution_table: {
+        Identifier(
+            "A",
+        ): 00000000000000000000000000000001,
+    },
+}

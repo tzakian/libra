@@ -1,0 +1,10 @@
+ [package]
+    name = "woops"
+    version = "0.1.0"
+    authors = ["abc", "xyz"]
+    edition = "woah"
+    address_aliases = ["a"]
+
+    [dependencies]
+
+

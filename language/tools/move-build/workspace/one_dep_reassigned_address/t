@@ -1,0 +1,46 @@
+MANIFEST: SourceManifest {
+    package: PackageInfo {
+        name: Identifier(
+            "Root",
+        ),
+        version: (
+            0,
+            0,
+            0,
+        ),
+        authors: [],
+        license: None,
+    },
+    addresses: Some(
+        {
+            Identifier(
+                "B",
+            ): Some(
+                00000000000000000000000000000002,
+            ),
+        },
+    ),
+    dev_address_assignments: None,
+    build: None,
+    dependencies: {
+        Identifier(
+            "OtherDep",
+        ): Dependency {
+            local: "./other_dep",
+            subst: Some(
+                {
+                    Identifier(
+                        "A",
+                    ): RenameFrom(
+                        Identifier(
+                            "B",
+                        ),
+                    ),
+                },
+            ),
+            version: None,
+            digest: None,
+        },
+    },
+    dev_dependencies: {},
+}

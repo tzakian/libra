@@ -1,0 +1,12 @@
+[package]
+name = "bar"
+version = "0.1.0"
+authors = ["abc", "xyz"]
+edition = "woah"
+
+[build_options]
+build_abis = true
+build_docs = true
+
+[dependencies]
+woops = { local = "../woops", subst = { a = "XYZ" } }

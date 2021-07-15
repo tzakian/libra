@@ -1,0 +1,10 @@
+[package]
+name = "foo"
+version = "0.1.0"
+authors = ["abc", "xyz"]
+edition = "woah"
+
+[dependencies]
+a = { local = "../qux" }
+b = { local = "../bar" }
+
