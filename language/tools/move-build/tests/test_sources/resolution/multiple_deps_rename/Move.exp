@@ -7,7 +7,7 @@ ResolutionGraph {
     root_package: SourceManifest {
         package: PackageInfo {
             name: Identifier(
-                "Root",
+                "test",
             ),
             version: (
                 0,
@@ -22,16 +22,34 @@ ResolutionGraph {
         build: None,
         dependencies: {
             Identifier(
-                "OtherDep",
+                "C",
             ): Dependency {
-                local: "./deps_only/other_dep",
+                local: "./deps_only/C",
                 subst: Some(
                     {
                         Identifier(
-                            "A",
+                            "CA",
                         ): RenameFrom(
                             Identifier(
-                                "B",
+                                "A",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+            Identifier(
+                "D",
+            ): Dependency {
+                local: "./deps_only/D",
+                subst: Some(
+                    {
+                        Identifier(
+                            "DA",
+                        ): RenameFrom(
+                            Identifier(
+                                "A",
                             ),
                         ),
                     },
@@ -44,32 +62,38 @@ ResolutionGraph {
     },
     graph: Graph {
         Ty: "Directed",
-        node_count: 2,
-        edge_count: 1,
-        edges: (0, 1),
+        node_count: 3,
+        edge_count: 2,
+        edges: (0, 1), (0, 2),
         node weights: {
             0: Identifier(
-                "Root",
+                "test",
             ),
             1: Identifier(
-                "OtherDep",
+                "C",
+            ),
+            2: Identifier(
+                "D",
             ),
         },
         edge weights: {
             0: Identifier(
-                "OtherDep",
+                "C",
+            ),
+            1: Identifier(
+                "D",
             ),
         },
     },
     package_table: {
         Identifier(
-            "OtherDep",
+            "C",
         ): ResolutionPackage {
             resolution_graph_index: NodeIndex(1),
             source_package: SourceManifest {
                 package: PackageInfo {
                     name: Identifier(
-                        "OtherDep",
+                        "C",
                     ),
                     version: (
                         0,
@@ -82,7 +106,7 @@ ResolutionGraph {
                 addresses: Some(
                     {
                         Identifier(
-                            "B",
+                            "A",
                         ): Some(
                             00000000000000000000000000000001,
                         ),
@@ -97,18 +121,57 @@ ResolutionGraph {
             renaming: {},
             resolution_table: {
                 Identifier(
-                    "B",
+                    "A",
                 ): 00000000000000000000000000000001,
             },
         },
         Identifier(
-            "Root",
+            "D",
+        ): ResolutionPackage {
+            resolution_graph_index: NodeIndex(2),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "D",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): Some(
+                            00000000000000000000000000000002,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "ELIDED_FOR_TEST",
+            renaming: {},
+            resolution_table: {
+                Identifier(
+                    "A",
+                ): 00000000000000000000000000000002,
+            },
+        },
+        Identifier(
+            "test",
         ): ResolutionPackage {
             resolution_graph_index: NodeIndex(0),
             source_package: SourceManifest {
                 package: PackageInfo {
                     name: Identifier(
-                        "Root",
+                        "test",
                     ),
                     version: (
                         0,
@@ -123,16 +186,34 @@ ResolutionGraph {
                 build: None,
                 dependencies: {
                     Identifier(
-                        "OtherDep",
+                        "C",
                     ): Dependency {
-                        local: "./deps_only/other_dep",
+                        local: "./deps_only/C",
                         subst: Some(
                             {
                                 Identifier(
-                                    "A",
+                                    "CA",
                                 ): RenameFrom(
                                     Identifier(
-                                        "B",
+                                        "A",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                    Identifier(
+                        "D",
+                    ): Dependency {
+                        local: "./deps_only/D",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "DA",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "A",
                                     ),
                                 ),
                             },
@@ -146,20 +227,33 @@ ResolutionGraph {
             package_path: "ELIDED_FOR_TEST",
             renaming: {
                 Identifier(
-                    "A",
+                    "CA",
                 ): (
                     Identifier(
-                        "OtherDep",
+                        "C",
                     ),
                     Identifier(
-                        "B",
+                        "A",
+                    ),
+                ),
+                Identifier(
+                    "DA",
+                ): (
+                    Identifier(
+                        "D",
+                    ),
+                    Identifier(
+                        "A",
                     ),
                 ),
             },
             resolution_table: {
                 Identifier(
-                    "A",
+                    "CA",
                 ): 00000000000000000000000000000001,
+                Identifier(
+                    "DA",
+                ): 00000000000000000000000000000002,
             },
         },
     },

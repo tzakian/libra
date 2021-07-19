@@ -1,4 +1,9 @@
 ResolutionGraph {
+    build_options: BuildConfig {
+        dev_mode: true,
+        generate_transaction_builders: false,
+        generate_abis: false,
+    },
     root_package: SourceManifest {
         package: PackageInfo {
             name: Identifier(
@@ -37,10 +42,10 @@ ResolutionGraph {
         },
         edge weights: {},
     },
-    memo_table: {
+    package_table: {
         Identifier(
             "test",
-        ): ResolvedPackage {
+        ): ResolutionPackage {
             resolution_graph_index: NodeIndex(0),
             source_package: SourceManifest {
                 package: PackageInfo {
@@ -69,13 +74,13 @@ ResolutionGraph {
                 dependencies: {},
                 dev_dependencies: {},
             },
-            package_path: "/home/tzakian/libra/language/tools/move-build",
+            package_path: "ELIDED_FOR_TEST",
             renaming: {},
+            resolution_table: {
+                Identifier(
+                    "A",
+                ): 00000000000000000000000000000000,
+            },
         },
-    },
-    resolution_table: {
-        Identifier(
-            "A",
-        ): 00000000000000000000000000000000,
     },
 }

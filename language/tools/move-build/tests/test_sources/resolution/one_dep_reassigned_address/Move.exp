@@ -1,1 +1,185 @@
-Unable to find package manifest at "/home/tzakian/libra/language/tools/move-build/./deps_only/other_dep"
+ResolutionGraph {
+    build_options: BuildConfig {
+        dev_mode: true,
+        generate_transaction_builders: false,
+        generate_abis: false,
+    },
+    root_package: SourceManifest {
+        package: PackageInfo {
+            name: Identifier(
+                "Root",
+            ),
+            version: (
+                0,
+                0,
+                0,
+            ),
+            authors: [],
+            license: None,
+        },
+        addresses: Some(
+            {
+                Identifier(
+                    "B",
+                ): Some(
+                    00000000000000000000000000000002,
+                ),
+            },
+        ),
+        dev_address_assignments: None,
+        build: None,
+        dependencies: {
+            Identifier(
+                "OtherDep",
+            ): Dependency {
+                local: "./deps_only/other_dep",
+                subst: Some(
+                    {
+                        Identifier(
+                            "A",
+                        ): RenameFrom(
+                            Identifier(
+                                "B",
+                            ),
+                        ),
+                    },
+                ),
+                version: None,
+                digest: None,
+            },
+        },
+        dev_dependencies: {},
+    },
+    graph: Graph {
+        Ty: "Directed",
+        node_count: 2,
+        edge_count: 1,
+        edges: (0, 1),
+        node weights: {
+            0: Identifier(
+                "Root",
+            ),
+            1: Identifier(
+                "OtherDep",
+            ),
+        },
+        edge weights: {
+            0: Identifier(
+                "OtherDep",
+            ),
+        },
+    },
+    package_table: {
+        Identifier(
+            "OtherDep",
+        ): ResolutionPackage {
+            resolution_graph_index: NodeIndex(1),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "OtherDep",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "B",
+                        ): Some(
+                            00000000000000000000000000000001,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {},
+                dev_dependencies: {},
+            },
+            package_path: "ELIDED_FOR_TEST",
+            renaming: {},
+            resolution_table: {
+                Identifier(
+                    "B",
+                ): 00000000000000000000000000000001,
+            },
+        },
+        Identifier(
+            "Root",
+        ): ResolutionPackage {
+            resolution_graph_index: NodeIndex(0),
+            source_package: SourceManifest {
+                package: PackageInfo {
+                    name: Identifier(
+                        "Root",
+                    ),
+                    version: (
+                        0,
+                        0,
+                        0,
+                    ),
+                    authors: [],
+                    license: None,
+                },
+                addresses: Some(
+                    {
+                        Identifier(
+                            "B",
+                        ): Some(
+                            00000000000000000000000000000002,
+                        ),
+                    },
+                ),
+                dev_address_assignments: None,
+                build: None,
+                dependencies: {
+                    Identifier(
+                        "OtherDep",
+                    ): Dependency {
+                        local: "./deps_only/other_dep",
+                        subst: Some(
+                            {
+                                Identifier(
+                                    "A",
+                                ): RenameFrom(
+                                    Identifier(
+                                        "B",
+                                    ),
+                                ),
+                            },
+                        ),
+                        version: None,
+                        digest: None,
+                    },
+                },
+                dev_dependencies: {},
+            },
+            package_path: "ELIDED_FOR_TEST",
+            renaming: {
+                Identifier(
+                    "A",
+                ): (
+                    Identifier(
+                        "OtherDep",
+                    ),
+                    Identifier(
+                        "B",
+                    ),
+                ),
+            },
+            resolution_table: {
+                Identifier(
+                    "A",
+                ): 00000000000000000000000000000001,
+                Identifier(
+                    "B",
+                ): 00000000000000000000000000000002,
+            },
+        },
+    },
+}
